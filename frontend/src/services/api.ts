@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Episode, Cluster, ClusterImages, AnnotationRequest, SplitAnnotationRequest } from '../types';
+import { Episode, Cluster, ClusterImages, AnnotationRequest, SplitAnnotationRequest, Image, NextImageResponse, LabelsResponse } from '../types';
 
 const API_BASE = '/api';
 
@@ -33,4 +33,19 @@ export const annotationApi = {
     api.get('/annotations/tasks/next', { params: { session_token: sessionToken } }),
   completeTask: (taskId: string, sessionToken: string) =>
     api.post(`/annotations/tasks/${taskId}/complete`, { session_token: sessionToken }),
+};
+
+// New API for image-by-image annotation
+export const imageApi = {
+  getNext: (episodeId: string) =>
+    api.get<NextImageResponse>(`/api/episodes/${episodeId}/images/next`),
+
+  annotate: (imageId: string, label: string) =>
+    api.post(`/api/images/${imageId}/annotate`, { label }),
+
+  getLabels: (episodeId: string) =>
+    api.get<LabelsResponse>(`/api/episodes/${episodeId}/labels`),
+
+  get: (imageId: string) =>
+    api.get<Image>(`/api/images/${imageId}`)
 };

@@ -39,52 +39,94 @@ class EpisodeService:
             cluster = models.Cluster(
                 episode_id=episode.id,
                 cluster_name=cluster_data["name"],
-                image_paths=cluster_data["images"]
+                initial_label=cluster_data["initial_label"],
+                image_paths=cluster_data["images"]  # Keep for backward compat
             )
             self.db.add(cluster)
-        
+            self.db.flush()  # Get cluster ID
+
+            # Create individual Image records
+            for img_path in cluster_data["images"]:
+                image = models.Image(
+                    cluster_id=cluster.id,
+                    episode_id=episode.id,
+                    file_path=img_path,
+                    filename=Path(img_path).name,
+                    initial_label=cluster_data["initial_label"]
+                )
+                self.db.add(image)
+
         self.db.commit()
         return episode
 
     async def _parse_clusters(self, episode_path: Path) -> List[Dict]:
+        """Parse uploaded folders as clusters with initial labels"""
         clusters = []
+
+        # Find all subdirectories (ignore hidden folders)
         for cluster_dir in episode_path.iterdir():
-            if cluster_dir.is_dir() and cluster_dir.name.startswith('cluster_'):
-                images = []
-                for img_file in cluster_dir.glob('*.jpg'):
-                    images.append(str(img_file.relative_to(self.upload_dir)))
-                
-                if images:
-                    clusters.append({
-                        "name": cluster_dir.name,
-                        "images": images
-                    })
-        
+            if not cluster_dir.is_dir() or cluster_dir.name.startswith('.'):
+                continue
+
+            # Collect images
+            images = []
+            for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
+                images.extend(cluster_dir.glob(ext))
+
+            if not images:
+                continue
+
+            # Normalize label: replace underscores with spaces, handle special cases
+            folder_name = cluster_dir.name
+            initial_label = self._normalize_label(folder_name)
+
+            clusters.append({
+                "name": folder_name,  # Keep original folder name
+                "initial_label": initial_label,  # Normalized label
+                "images": [str(img.relative_to(self.upload_dir)) for img in images]
+            })
+
         return clusters
 
+    def _normalize_label(self, folder_name: str) -> str:
+        """Convert folder name to label"""
+        # Special cases: treat as unlabeled
+        if folder_name.lower() in ['unknown', 'unlabeled', 'uncertain', 'unsure']:
+            return None
+
+        # Replace underscores with spaces
+        label = folder_name.replace('_', ' ')
+
+        return label
+
     async def export_annotations(self, episode_id: str) -> Dict:
+        """Export all image annotations"""
+        from datetime import datetime
+
         episode = self.db.query(models.Episode).filter(models.Episode.id == episode_id).first()
         if not episode:
             raise HTTPException(status_code=404, detail="Episode not found")
-        
-        clusters = self.db.query(models.Cluster).filter(models.Cluster.episode_id == episode_id).all()
-        
-        annotations = {}
-        split_annotations = {}
-        
-        for cluster in clusters:
-            if cluster.is_single_person and cluster.person_name:
-                annotations[cluster.cluster_name] = cluster.person_name
-            elif not cluster.is_single_person:
-                splits = self.db.query(models.SplitAnnotation).filter(
-                    models.SplitAnnotation.cluster_id == cluster.id
-                ).all()
-                for split in splits:
-                    split_annotations[split.scene_track_pattern] = split.person_name
-        
+
+        # Get all annotated images
+        images = self.db.query(models.Image)\
+            .filter(models.Image.episode_id == episode_id)\
+            .filter(models.Image.annotation_status == "completed")\
+            .all()
+
+        # Group by label
+        label_mapping = {}
+        for image in images:
+            label = image.current_label or "unlabeled"
+            if label not in label_mapping:
+                label_mapping[label] = []
+            label_mapping[label].append(image.file_path)
+
+        total_images = self.db.query(models.Image).filter(models.Image.episode_id == episode_id).count()
+
         return {
             "episode": episode.name,
-            "single_person_clusters": annotations,
-            "split_clusters": split_annotations,
-            "export_timestamp": episode.upload_timestamp.isoformat()
+            "total_images": total_images,
+            "annotated_images": len(images),
+            "label_mapping": label_mapping,
+            "export_timestamp": datetime.utcnow().isoformat()
         }

@@ -68,14 +68,30 @@ export default function EpisodePage() {
         <Link to="/">&larr; Back to Episodes</Link>
         <h2>{episode.name}</h2>
         <p>Status: {episode.status}</p>
-        <p>Progress: {episode.annotated_clusters} / {episode.total_clusters} clusters</p>
-        <button 
-          className="button" 
-          onClick={handleExport}
-          disabled={episode.annotated_clusters === 0}
-        >
-          Export Annotations
-        </button>
+        <p>Progress: {episode.annotated_clusters} / {episode.total_clusters} images</p>
+
+        <div style={{ marginTop: '20px', marginBottom: '20px' }}>
+          <Link
+            to={`/episodes/${episode.id}/annotate`}
+            className="button"
+            style={{
+              fontSize: '18px',
+              padding: '15px 30px',
+              textDecoration: 'none',
+              display: 'inline-block',
+              marginRight: '10px'
+            }}
+          >
+            Start Annotating
+          </Link>
+          <button
+            className="button"
+            onClick={handleExport}
+            disabled={episode.annotated_clusters === 0}
+          >
+            Export Annotations
+          </button>
+        </div>
       </div>
 
       <div className="card">

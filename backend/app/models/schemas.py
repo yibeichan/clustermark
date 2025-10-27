@@ -36,7 +36,8 @@ class Cluster(ClusterBase):
     is_single_person: Optional[bool] = None
     person_name: Optional[str] = None
     annotation_status: str = "pending"
-    
+    initial_label: Optional[str] = None
+
     class Config:
         from_attributes = True
 
@@ -65,6 +66,26 @@ class Annotator(AnnotatorBase):
     id: uuid.UUID
     created_at: datetime
     completed_tasks: int = 0
-    
+
     class Config:
         from_attributes = True
+
+# Image schemas for new annotation system
+class ImageBase(BaseModel):
+    file_path: str
+    filename: str
+    initial_label: Optional[str] = None
+    current_label: Optional[str] = None
+    annotation_status: str = "pending"
+
+class Image(ImageBase):
+    id: uuid.UUID
+    cluster_id: uuid.UUID
+    episode_id: uuid.UUID
+    annotated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class ImageAnnotate(BaseModel):
+    label: str  # The assigned label

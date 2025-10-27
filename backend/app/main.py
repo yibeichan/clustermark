@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import episodes, clusters, annotations
+from app.routers import episodes, clusters, annotations, images
 
 app = FastAPI(
     title="ClusterMark API",
@@ -17,8 +17,9 @@ app.add_middleware(
 )
 
 app.include_router(episodes.router, prefix="/episodes", tags=["episodes"])
-app.include_router(clusters.router, prefix="/clusters", tags=["clusters"])  
+app.include_router(clusters.router, prefix="/clusters", tags=["clusters"])
 app.include_router(annotations.router, prefix="/annotations", tags=["annotations"])
+app.include_router(images.router, prefix="/api", tags=["images"])
 
 @app.get("/")
 async def root():

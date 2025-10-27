@@ -1,217 +1,208 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { clusterApi, annotationApi } from '../services/api';
-import { Cluster, ClusterImages, SplitAnnotationRequest } from '../types';
+import { imageApi } from '../services/api';
+import { Image } from '../types';
 
 export default function AnnotationPage() {
-  const { clusterId } = useParams<{ clusterId: string }>();
+  const { episodeId } = useParams<{ episodeId: string }>();
   const navigate = useNavigate();
-  const [cluster, setCluster] = useState<Cluster | null>(null);
-  const [clusterImages, setClusterImages] = useState<ClusterImages | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState<'question' | 'single-person' | 'split'>('question');
-  const [personName, setPersonName] = useState('');
-  const [splitAnnotations, setSplitAnnotations] = useState<Record<string, string>>({});
+
+  const [currentImage, setCurrentImage] = useState<Image | null>(null);
+  const [availableLabels, setAvailableLabels] = useState<string[]>([]);
+  const [selectedLabel, setSelectedLabel] = useState('');
+  const [customLabel, setCustomLabel] = useState('');
+  const [useCustomLabel, setUseCustomLabel] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [completed, setCompleted] = useState(false);
 
   useEffect(() => {
-    if (clusterId) {
-      loadClusterData(clusterId);
+    if (episodeId) {
+      loadLabels(episodeId);
+      loadNextImage(episodeId);
     }
-  }, [clusterId]);
+  }, [episodeId]);
 
-  const loadClusterData = async (id: string) => {
+  const loadLabels = async (id: string) => {
     try {
-      const [clusterResponse, imagesResponse] = await Promise.all([
-        clusterApi.get(id),
-        clusterApi.getImages(id)
-      ]);
-      setCluster(clusterResponse.data);
-      setClusterImages(imagesResponse.data);
+      const response = await imageApi.getLabels(id);
+      setAvailableLabels(response.data.labels);
     } catch (err) {
-      setError('Failed to load cluster data');
+      console.error('Failed to load labels', err);
+    }
+  };
+
+  const loadNextImage = async (id: string) => {
+    setLoading(true);
+    try {
+      const response = await imageApi.getNext(id);
+      if (response.data.image) {
+        setCurrentImage(response.data.image);
+        // Pre-select initial label if it exists
+        if (response.data.image.initial_label) {
+          setSelectedLabel(response.data.image.initial_label);
+          setUseCustomLabel(false);
+        }
+        setError(null);
+      } else {
+        setCompleted(true);
+      }
+    } catch (err) {
+      setError('Failed to load next image');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSinglePersonAnswer = (isSinglePerson: boolean) => {
-    if (isSinglePerson) {
-      setStep('single-person');
-    } else {
-      setStep('split');
-    }
-  };
+  const handleSubmit = async () => {
+    if (!currentImage || !episodeId) return;
 
-  const handleSinglePersonSubmit = async () => {
-    if (!clusterId || !personName.trim()) return;
+    const label = useCustomLabel ? customLabel.trim() : selectedLabel;
+    if (!label) {
+      setError('Please select or enter a label');
+      return;
+    }
 
     try {
-      await clusterApi.annotate(clusterId, {
-        is_single_person: true,
-        person_name: personName.trim()
-      });
-      navigate(`/episodes/${cluster?.episode_id}`);
+      await imageApi.annotate(currentImage.id, label);
+      // Load next image immediately
+      await loadNextImage(episodeId);
+      // Reset form
+      setCustomLabel('');
+      setUseCustomLabel(false);
     } catch (err) {
       setError('Failed to save annotation');
     }
   };
 
-  const handleSplitSubmit = async () => {
-    if (!clusterId || !clusterImages) return;
-
-    const annotations: SplitAnnotationRequest[] = Object.entries(splitAnnotations)
-      .filter(([_, name]) => name.trim())
-      .map(([pattern, name]) => ({
-        cluster_id: clusterId,
-        scene_track_pattern: pattern,
-        person_name: name.trim(),
-        image_paths: clusterImages.grouped_by_track[pattern] || []
-      }));
-
-    if (annotations.length === 0) {
-      setError('Please assign names to at least one group');
-      return;
-    }
+  const handleCorrect = async () => {
+    // Quick "correct" button - uses initial label
+    if (!currentImage || !currentImage.initial_label || !episodeId) return;
 
     try {
-      await annotationApi.createSplit(annotations);
-      navigate(`/episodes/${cluster?.episode_id}`);
+      await imageApi.annotate(currentImage.id, currentImage.initial_label);
+      await loadNextImage(episodeId);
     } catch (err) {
-      setError('Failed to save split annotations');
+      setError('Failed to save annotation');
     }
   };
 
-  if (loading) {
-    return <div className="loading">Loading cluster...</div>;
+  if (completed) {
+    return (
+      <div className="card">
+        <h2>All Done!</h2>
+        <p>All images have been annotated.</p>
+        <button className="button" onClick={() => navigate(`/episodes/${episodeId}`)}>
+          Back to Episode
+        </button>
+      </div>
+    );
   }
 
-  if (error) {
-    return <div className="error">{error}</div>;
+  if (loading && !currentImage) {
+    return <div className="loading">Loading...</div>;
   }
 
-  if (!cluster || !clusterImages) {
-    return <div className="error">Cluster not found</div>;
+  if (!currentImage) {
+    return <div className="error">No images to annotate</div>;
   }
 
   return (
     <div>
       <div className="card">
-        <button 
-          className="button" 
-          onClick={() => navigate(`/episodes/${cluster.episode_id}`)}
-        >
+        <button className="button" onClick={() => navigate(`/episodes/${episodeId}`)}>
           &larr; Back to Episode
         </button>
-        <h2>Annotate {cluster.cluster_name}</h2>
-        <p>{clusterImages.all_images.length} images total</p>
+        <h2>Image Annotation</h2>
       </div>
 
-      {step === 'question' && (
-        <div className="card">
-          <h3>Do all these faces belong to the same person?</h3>
-          <div className="image-grid">
-            {clusterImages.all_images.slice(0, 20).map((imagePath, index) => (
-              <div key={index} className="image-item">
-                <img 
-                  src={`/uploads/${imagePath}`} 
-                  alt={`Face ${index + 1}`}
-                  onError={(e) => {
-                    e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4=';
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-          {clusterImages.all_images.length > 20 && (
-            <p>Showing first 20 of {clusterImages.all_images.length} images</p>
-          )}
-          <div style={{ marginTop: '20px' }}>
-            <button 
-              className="button" 
-              onClick={() => handleSinglePersonAnswer(true)}
-              style={{ marginRight: '10px' }}
-            >
-              Yes - Same Person
-            </button>
-            <button 
-              className="button" 
-              onClick={() => handleSinglePersonAnswer(false)}
-            >
-              No - Multiple People
-            </button>
-          </div>
-        </div>
-      )}
+      {error && <div className="error">{error}</div>}
 
-      {step === 'single-person' && (
-        <div className="card">
-          <h3>Who is this person?</h3>
-          <input
-            type="text"
-            value={personName}
-            onChange={(e) => setPersonName(e.target.value)}
-            placeholder="Enter person name"
-            style={{ 
-              padding: '10px', 
-              fontSize: '16px', 
-              width: '300px', 
-              marginRight: '10px' 
+      {/* Image Display */}
+      <div className="card" style={{ textAlign: 'center' }}>
+        <img
+          src={`/uploads/${currentImage.file_path}`}
+          alt={currentImage.filename}
+          style={{ maxWidth: '100%', maxHeight: '600px', objectFit: 'contain' }}
+        />
+        <p style={{ marginTop: '10px', color: '#666' }}>{currentImage.filename}</p>
+      </div>
+
+      {/* Label Assignment */}
+      <div className="card">
+        <h3>Current Label: {currentImage.initial_label || 'Unlabeled'}</h3>
+
+        {/* Quick confirm button */}
+        {currentImage.initial_label && (
+          <div style={{ marginBottom: '20px' }}>
+            <button
+              className="button"
+              onClick={handleCorrect}
+              style={{ backgroundColor: '#28a745', fontSize: '18px', padding: '15px 30px' }}
+            >
+              ✓ Correct (Keep: {currentImage.initial_label})
+            </button>
+          </div>
+        )}
+
+        <h4>Change Label:</h4>
+
+        {/* Dropdown selection */}
+        <div style={{ marginBottom: '15px' }}>
+          <select
+            value={useCustomLabel ? '' : selectedLabel}
+            onChange={(e) => {
+              setSelectedLabel(e.target.value);
+              setUseCustomLabel(false);
             }}
-          />
-          <button 
-            className="button" 
-            onClick={handleSinglePersonSubmit}
-            disabled={!personName.trim()}
+            disabled={useCustomLabel}
+            style={{ padding: '10px', fontSize: '16px', width: '300px' }}
           >
-            Save Annotation
-          </button>
+            <option value="">Select a label...</option>
+            {availableLabels.map(label => (
+              <option key={label} value={label}>{label}</option>
+            ))}
+          </select>
         </div>
-      )}
 
-      {step === 'split' && (
-        <div className="card">
-          <h3>Assign names to each group</h3>
-          <p>Images have been grouped by scene and track. Assign a person name to each group:</p>
-          
-          {Object.entries(clusterImages.grouped_by_track).map(([pattern, images]) => (
-            <div key={pattern} style={{ marginBottom: '30px', border: '1px solid #ddd', padding: '15px', borderRadius: '4px' }}>
-              <h4>{pattern} ({images.length} images)</h4>
-              <div className="image-grid" style={{ marginBottom: '10px' }}>
-                {images.slice(0, 6).map((imagePath, index) => (
-                  <div key={index} className="image-item">
-                    <img 
-                      src={`/uploads/${imagePath}`} 
-                      alt={`${pattern} ${index + 1}`}
-                      onError={(e) => {
-                        e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4=';
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-              {images.length > 6 && <p>Showing 6 of {images.length} images</p>}
-              <input
-                type="text"
-                value={splitAnnotations[pattern] || ''}
-                onChange={(e) => setSplitAnnotations(prev => ({
-                  ...prev,
-                  [pattern]: e.target.value
-                }))}
-                placeholder="Enter person name"
-                style={{ padding: '8px', fontSize: '14px', width: '200px' }}
-              />
-            </div>
-          ))}
-          
-          <button 
-            className="button" 
-            onClick={handleSplitSubmit}
-          >
-            Save Split Annotations
-          </button>
+        {/* Custom input */}
+        <div style={{ marginBottom: '15px' }}>
+          <label>
+            <input
+              type="checkbox"
+              checked={useCustomLabel}
+              onChange={(e) => setUseCustomLabel(e.target.checked)}
+            />
+            {' '}Use custom label
+          </label>
         </div>
-      )}
+
+        {useCustomLabel && (
+          <div style={{ marginBottom: '15px' }}>
+            <input
+              type="text"
+              value={customLabel}
+              onChange={(e) => setCustomLabel(e.target.value)}
+              placeholder="Enter new label"
+              style={{ padding: '10px', fontSize: '16px', width: '300px' }}
+            />
+          </div>
+        )}
+
+        {/* Submit button */}
+        <button
+          className="button"
+          onClick={handleSubmit}
+          disabled={!useCustomLabel && !selectedLabel}
+        >
+          Save & Next →
+        </button>
+
+        {/* Keyboard shortcuts hint */}
+        <p style={{ marginTop: '20px', color: '#666', fontSize: '14px' }}>
+          Tip: Press Enter to confirm
+        </p>
+      </div>
     </div>
   );
 }

@@ -14,6 +14,7 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/episodes/:episodeId" element={<EpisodePage />} />
+        <Route path="/episodes/:episodeId/annotate" element={<AnnotationPage />} />
         <Route path="/annotate/:clusterId" element={<AnnotationPage />} />
       </Routes>
     </div>

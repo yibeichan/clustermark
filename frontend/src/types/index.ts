@@ -43,3 +43,29 @@ export interface SplitAnnotationRequest {
   person_name: string;
   image_paths: string[];
 }
+
+// New types for image-by-image annotation
+export interface Image {
+  id: string;
+  cluster_id: string;
+  episode_id: string;
+  file_path: string;
+  filename: string;
+  initial_label: string | null;
+  current_label: string | null;
+  annotation_status: 'pending' | 'completed';
+  annotated_at: string | null;
+}
+
+export interface ImageAnnotateRequest {
+  label: string;
+}
+
+export interface NextImageResponse {
+  message?: string;
+  image: Image | null;
+}
+
+export interface LabelsResponse {
+  labels: string[];
+}

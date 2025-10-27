@@ -19,7 +19,7 @@ class Episode(Base):
 
 class Cluster(Base):
     __tablename__ = "clusters"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     episode_id = Column(UUID(as_uuid=True), ForeignKey("episodes.id"), nullable=False)
     cluster_name = Column(String(100), nullable=False)
@@ -27,9 +27,35 @@ class Cluster(Base):
     is_single_person = Column(Boolean)
     person_name = Column(String(255))
     annotation_status = Column(String(20), default="pending")
-    
+
+    # NEW: Label tracking
+    initial_label = Column(String(255))  # Folder name as initial label
+
     episode = relationship("Episode", back_populates="clusters")
     split_annotations = relationship("SplitAnnotation", back_populates="cluster")
+
+class Image(Base):
+    __tablename__ = "images"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("clusters.id"), nullable=False)
+    episode_id = Column(UUID(as_uuid=True), ForeignKey("episodes.id"), nullable=False)
+
+    # File info
+    file_path = Column(Text, nullable=False)
+    filename = Column(String(255), nullable=False)
+
+    # Labels
+    initial_label = Column(String(255))  # From folder name
+    current_label = Column(String(255))  # Annotator's assigned label
+
+    # Metadata
+    annotation_status = Column(String(20), default="pending")  # pending/completed
+    annotated_at = Column(DateTime(timezone=True))
+
+    # Relationships
+    cluster = relationship("Cluster")
+    episode = relationship("Episode")
 
 class SplitAnnotation(Base):
     __tablename__ = "split_annotations"
