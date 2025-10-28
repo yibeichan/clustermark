@@ -99,7 +99,7 @@ class Image(ImageBase):
 
 # Paginated response schemas (for Phase 3)
 class PaginatedImagesResponse(BaseModel):
-    cluster_id: str
+    cluster_id: uuid.UUID
     cluster_name: str
     initial_label: Optional[str] = None
     images: List[Image]
@@ -111,14 +111,14 @@ class PaginatedImagesResponse(BaseModel):
 
 # Outlier and batch annotation schemas (for Phase 3)
 class OutlierSelectionRequest(BaseModel):
-    cluster_id: str
-    outlier_image_ids: List[str]
+    cluster_id: uuid.UUID
+    outlier_image_ids: List[uuid.UUID]
 
 class ClusterAnnotateBatch(BaseModel):
     person_name: str
     is_custom_label: bool = False
 
 class OutlierAnnotation(BaseModel):
-    image_id: str
+    image_id: uuid.UUID
     person_name: str
     is_custom_label: bool = False

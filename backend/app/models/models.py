@@ -3,7 +3,6 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func, text
 from app.database import Base
-import uuid
 
 class Episode(Base):
     __tablename__ = "episodes"

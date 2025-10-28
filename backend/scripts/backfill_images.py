@@ -26,9 +26,12 @@ def backfill_images():
     try:
         print("Starting backfill process...")
 
-        # Get all clusters (use streaming query to avoid loading all into memory)
-        clusters_query = db.query(Cluster)
-        print(f"Found {clusters_query.count()} clusters to process")
+        # Get total count with lightweight query (only IDs)
+        cluster_count = db.query(Cluster.id).count()
+        print(f"Found {cluster_count} clusters to process")
+
+        # Use streaming query with yield_per to avoid loading all into memory
+        clusters_query = db.query(Cluster).yield_per(100)
 
         total_images_created = 0
         clusters_processed = 0
