@@ -68,10 +68,11 @@ def backfill_images():
             # Bulk insert for performance
             db.bulk_save_objects(images_to_create)
 
-            # Commit every 10 clusters for safety
+            # Flush every 10 clusters to write to DB without committing transaction
+            # (commit would invalidate the yield_per cursor)
             if (idx + 1) % 10 == 0:
-                db.commit()
-                print(f"  Committed batch at cluster {idx + 1}")
+                db.flush()
+                print(f"  Flushed batch at cluster {idx + 1}")
 
             images_created = len(images_to_create)
             total_images_created += images_created

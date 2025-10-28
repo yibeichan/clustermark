@@ -17,7 +17,9 @@ class Episode(Base):
     episode_number = Column(Integer, nullable=True)
 
     clusters = relationship("Cluster", back_populates="episode", cascade="all, delete-orphan")
-    images = relationship("Image", back_populates="episode", cascade="all, delete-orphan")
+    # Images belong to Cluster (primary parent). Episode relationship for queries only.
+    # Cascade handled at database level via FK ondelete='CASCADE'
+    images = relationship("Image", back_populates="episode")
 
 class Cluster(Base):
     __tablename__ = "clusters"
