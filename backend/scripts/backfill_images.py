@@ -26,14 +26,14 @@ def backfill_images():
     try:
         print("Starting backfill process...")
 
-        # Get all clusters
-        clusters = db.query(Cluster).all()
-        print(f"Found {len(clusters)} clusters to process")
+        # Get all clusters (use streaming query to avoid loading all into memory)
+        clusters_query = db.query(Cluster)
+        print(f"Found {clusters_query.count()} clusters to process")
 
         total_images_created = 0
         clusters_processed = 0
 
-        for idx, cluster in enumerate(clusters):
+        for idx, cluster in enumerate(clusters_query):
             # Skip clusters with no image_paths
             if not cluster.image_paths:
                 continue
@@ -42,8 +42,7 @@ def backfill_images():
             image_exists = db.query(exists().where(Image.cluster_id == cluster.id)).scalar()
 
             if image_exists:
-                existing_count = db.query(Image).filter(Image.cluster_id == cluster.id).count()
-                print(f"  Cluster {cluster.cluster_name}: Already has {existing_count} images, skipping")
+                print(f"  Cluster {cluster.cluster_name}: Already has images, skipping")
                 continue
 
             # Create Image records for this cluster (batch for performance)
