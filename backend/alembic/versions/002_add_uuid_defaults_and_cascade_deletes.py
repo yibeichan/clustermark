@@ -78,11 +78,11 @@ def upgrade() -> None:
         ondelete='CASCADE'
     )
 
+    # images.episode_id without CASCADE - deletion cascades through Cluster (single path)
     op.create_foreign_key(
         'images_episode_id_fkey',
         'images', 'episodes',
-        ['episode_id'], ['id'],
-        ondelete='CASCADE'
+        ['episode_id'], ['id']
     )
 
     op.create_foreign_key(

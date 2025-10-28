@@ -74,7 +74,8 @@ class Image(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text('gen_random_uuid()'))
     cluster_id = Column(UUID(as_uuid=True), ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False)
-    episode_id = Column(UUID(as_uuid=True), ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False)
+    # episode_id FK without CASCADE - deletion cascades through Cluster (single path)
+    episode_id = Column(UUID(as_uuid=True), ForeignKey("episodes.id"), nullable=False)
     file_path = Column(Text, nullable=False)
     filename = Column(String(255), nullable=False)
     initial_label = Column(String(255), nullable=True)
