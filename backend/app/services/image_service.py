@@ -53,10 +53,14 @@ class ImageService:
             self.db.commit()
 
     async def get_all_labels(self, episode_id: str) -> List[str]:
-        """Get list of all unique labels in episode for dropdown"""
+        """Get list of all unique labels in episode for dropdown
+
+        Excludes 'unlabeled' since it's not a selectable person name.
+        """
         labels = self.db.query(models.Image.initial_label)\
             .filter(models.Image.episode_id == episode_id)\
             .filter(models.Image.initial_label.isnot(None))\
+            .filter(models.Image.initial_label != "unlabeled")\
             .distinct()\
             .all()
         return sorted([label[0] for label in labels])

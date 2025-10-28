@@ -38,9 +38,13 @@ export default function AnnotationPage() {
       const response = await imageApi.getNext(id);
       if (response.data.image) {
         setCurrentImage(response.data.image);
-        // Pre-select initial label if it exists
-        if (response.data.image.initial_label) {
+        // Pre-select initial label if it exists and is not "unlabeled"
+        if (response.data.image.initial_label && response.data.image.initial_label !== 'unlabeled') {
           setSelectedLabel(response.data.image.initial_label);
+          setUseCustomLabel(false);
+        } else {
+          // Reset state for unlabeled images to avoid accidentally using previous label
+          setSelectedLabel('');
           setUseCustomLabel(false);
         }
         setError(null);
@@ -76,8 +80,8 @@ export default function AnnotationPage() {
   };
 
   const handleCorrect = async () => {
-    // Quick "correct" button - uses initial label
-    if (!currentImage || !currentImage.initial_label || !episodeId) return;
+    // Quick "correct" button - uses initial label (only for valid labels)
+    if (!currentImage || !currentImage.initial_label || currentImage.initial_label === 'unlabeled' || !episodeId) return;
 
     try {
       await imageApi.annotate(currentImage.id, currentImage.initial_label);
@@ -130,10 +134,10 @@ export default function AnnotationPage() {
 
       {/* Label Assignment */}
       <div className="card">
-        <h3>Current Label: {currentImage.initial_label || 'Unlabeled'}</h3>
+        <h3>Current Label: {currentImage.initial_label && currentImage.initial_label !== 'unlabeled' ? currentImage.initial_label : 'Unlabeled'}</h3>
 
-        {/* Quick confirm button */}
-        {currentImage.initial_label && (
+        {/* Quick confirm button - only show for valid labels (not "unlabeled") */}
+        {currentImage.initial_label && currentImage.initial_label !== 'unlabeled' && (
           <div style={{ marginBottom: '20px' }}>
             <button
               className="button"

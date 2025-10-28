@@ -8,12 +8,15 @@ router = APIRouter()
 
 @router.get("/episodes/{episode_id}/images/next")
 async def get_next_image(episode_id: str, db: Session = Depends(get_db)):
-    """Get next pending image to annotate"""
+    """Get next pending image to annotate
+
+    Returns consistent response structure with 'image' key for both cases.
+    """
     service = ImageService(db)
     image = await service.get_next_pending_image(episode_id)
     if not image:
         return {"message": "No pending images", "image": None}
-    return image
+    return {"image": image}
 
 @router.post("/images/{image_id}/annotate")
 async def annotate_image(

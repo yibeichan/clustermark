@@ -68,10 +68,11 @@ class EpisodeService:
             if not cluster_dir.is_dir() or cluster_dir.name.startswith('.'):
                 continue
 
-            # Collect images
-            images = []
-            for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
-                images.extend(cluster_dir.glob(ext))
+            # Collect images (case-insensitive extension matching)
+            images = [
+                f for f in cluster_dir.iterdir()
+                if f.is_file() and f.suffix.lower() in ['.jpg', '.jpeg', '.png']
+            ]
 
             if not images:
                 continue
@@ -89,10 +90,14 @@ class EpisodeService:
         return clusters
 
     def _normalize_label(self, folder_name: str) -> str:
-        """Convert folder name to label"""
+        """Convert folder name to label
+
+        Returns 'unlabeled' for special folder names to avoid None ambiguity.
+        This makes intent explicit throughout the codebase.
+        """
         # Special cases: treat as unlabeled
         if folder_name.lower() in ['unknown', 'unlabeled', 'uncertain', 'unsure']:
-            return None
+            return "unlabeled"
 
         # Replace underscores with spaces
         label = folder_name.replace('_', ' ')
