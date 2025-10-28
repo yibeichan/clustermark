@@ -1,8 +1,8 @@
 """Add image-level annotations and label tracking
 
 Revision ID: 001_add_images
-Revises:
-Create Date: 2025-10-27
+Revises: 000_initial
+Create Date: 2025-10-28
 
 """
 from alembic import op
@@ -31,8 +31,8 @@ def upgrade() -> None:
         sa.Column('current_label', sa.String(length=255), nullable=True),
         sa.Column('annotation_status', sa.String(length=20), nullable=True),
         sa.Column('annotated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(['cluster_id'], ['clusters.id'], ),
-        sa.ForeignKeyConstraint(['episode_id'], ['episodes.id'], ),
+        sa.ForeignKeyConstraint(['cluster_id'], ['clusters.id'], name='fk_images_cluster_id_clusters'),
+        sa.ForeignKeyConstraint(['episode_id'], ['episodes.id'], name='fk_images_episode_id_episodes'),
         sa.PrimaryKeyConstraint('id')
     )
 

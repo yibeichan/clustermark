@@ -58,21 +58,21 @@ def upgrade() -> None:
     # ========================================
 
     # Drop existing foreign key constraints (without CASCADE)
-    op.drop_constraint('clusters_episode_id_fkey', 'clusters', type_='foreignkey')
-    op.drop_constraint('images_cluster_id_fkey', 'images', type_='foreignkey')
-    op.drop_constraint('images_episode_id_fkey', 'images', type_='foreignkey')
-    op.drop_constraint('split_annotations_cluster_id_fkey', 'split_annotations', type_='foreignkey')
+    op.drop_constraint('fk_clusters_episode_id_episodes', 'clusters', type_='foreignkey')
+    op.drop_constraint('fk_images_cluster_id_clusters', 'images', type_='foreignkey')
+    op.drop_constraint('fk_images_episode_id_episodes', 'images', type_='foreignkey')
+    op.drop_constraint('fk_split_annotations_cluster_id_clusters', 'split_annotations', type_='foreignkey')
 
     # Recreate foreign key constraints with CASCADE
     op.create_foreign_key(
-        'clusters_episode_id_fkey',
+        'fk_clusters_episode_id_episodes',
         'clusters', 'episodes',
         ['episode_id'], ['id'],
         ondelete='CASCADE'
     )
 
     op.create_foreign_key(
-        'images_cluster_id_fkey',
+        'fk_images_cluster_id_clusters',
         'images', 'clusters',
         ['cluster_id'], ['id'],
         ondelete='CASCADE'
@@ -80,13 +80,13 @@ def upgrade() -> None:
 
     # images.episode_id without CASCADE - deletion cascades through Cluster (single path)
     op.create_foreign_key(
-        'images_episode_id_fkey',
+        'fk_images_episode_id_episodes',
         'images', 'episodes',
         ['episode_id'], ['id']
     )
 
     op.create_foreign_key(
-        'split_annotations_cluster_id_fkey',
+        'fk_split_annotations_cluster_id_clusters',
         'split_annotations', 'clusters',
         ['cluster_id'], ['id'],
         ondelete='CASCADE'
@@ -99,32 +99,32 @@ def downgrade() -> None:
     # ========================================
 
     # Drop CASCADE foreign key constraints
-    op.drop_constraint('split_annotations_cluster_id_fkey', 'split_annotations', type_='foreignkey')
-    op.drop_constraint('images_episode_id_fkey', 'images', type_='foreignkey')
-    op.drop_constraint('images_cluster_id_fkey', 'images', type_='foreignkey')
-    op.drop_constraint('clusters_episode_id_fkey', 'clusters', type_='foreignkey')
+    op.drop_constraint('fk_split_annotations_cluster_id_clusters', 'split_annotations', type_='foreignkey')
+    op.drop_constraint('fk_images_episode_id_episodes', 'images', type_='foreignkey')
+    op.drop_constraint('fk_images_cluster_id_clusters', 'images', type_='foreignkey')
+    op.drop_constraint('fk_clusters_episode_id_episodes', 'clusters', type_='foreignkey')
 
     # Recreate foreign key constraints without CASCADE
     op.create_foreign_key(
-        'clusters_episode_id_fkey',
+        'fk_clusters_episode_id_episodes',
         'clusters', 'episodes',
         ['episode_id'], ['id']
     )
 
     op.create_foreign_key(
-        'images_cluster_id_fkey',
+        'fk_images_cluster_id_clusters',
         'images', 'clusters',
         ['cluster_id'], ['id']
     )
 
     op.create_foreign_key(
-        'images_episode_id_fkey',
+        'fk_images_episode_id_episodes',
         'images', 'episodes',
         ['episode_id'], ['id']
     )
 
     op.create_foreign_key(
-        'split_annotations_cluster_id_fkey',
+        'fk_split_annotations_cluster_id_clusters',
         'split_annotations', 'clusters',
         ['cluster_id'], ['id']
     )

@@ -34,7 +34,12 @@ def backfill_images():
     try:
         print("Starting backfill process...")
 
-        # Step 1: Fetch all cluster IDs (lightweight, no memory issue)
+        # Step 1: Fetch all cluster IDs (lightweight, memory-efficient approach)
+        # Note: UUIDs are only 16 bytes each. Loading all IDs into memory:
+        #   - 1M clusters = ~16MB RAM (negligible)
+        #   - 10M clusters = ~160MB RAM (acceptable)
+        # Alternative LIMIT/OFFSET approach has severe performance degradation
+        # at high offsets (O(n) for each batch), making this approach more efficient.
         cluster_ids = [row[0] for row in db.query(Cluster.id).all()]
         cluster_count = len(cluster_ids)
         print(f"Found {cluster_count} clusters to process")

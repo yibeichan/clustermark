@@ -37,7 +37,7 @@ def upgrade() -> None:
         sa.Column('is_single_person', sa.Boolean(), nullable=True),
         sa.Column('person_name', sa.String(length=255), nullable=True),
         sa.Column('annotation_status', sa.String(length=20), nullable=True),
-        sa.ForeignKeyConstraint(['episode_id'], ['episodes.id'], ),
+        sa.ForeignKeyConstraint(['episode_id'], ['episodes.id'], name='fk_clusters_episode_id_episodes'),
         sa.PrimaryKeyConstraint('id')
     )
 
@@ -48,7 +48,7 @@ def upgrade() -> None:
         sa.Column('scene_track_pattern', sa.String(length=100), nullable=False),
         sa.Column('person_name', sa.String(length=255), nullable=False),
         sa.Column('image_paths', postgresql.ARRAY(sa.Text()), nullable=True),
-        sa.ForeignKeyConstraint(['cluster_id'], ['clusters.id'], ),
+        sa.ForeignKeyConstraint(['cluster_id'], ['clusters.id'], name='fk_split_annotations_cluster_id_clusters'),
         sa.PrimaryKeyConstraint('id')
     )
 
