@@ -11,6 +11,12 @@ from app.models import models, schemas
 
 logger = logging.getLogger(__name__)
 
+# Pre-compiled regex patterns for performance (Gemini HIGH priority)
+# Compiling at module level prevents redundant compilation on every parse call
+PATTERN_SXXEYY_CLUSTER = re.compile(r'^S(\d+)E(\d+)_cluster-?(\d+)$', re.IGNORECASE)
+PATTERN_SXXEYY_CHAR = re.compile(r'^S(\d+)E(\d+)_(.+)$', re.IGNORECASE)
+PATTERN_LEGACY_CLUSTER = re.compile(r'^cluster_(\d+)$', re.IGNORECASE)
+
 class EpisodeService:
     def __init__(self, db: Session):
         self.db = db
@@ -69,11 +75,7 @@ class EpisodeService:
 
         # Pattern 1: SxxEyy_cluster-N (e.g., S01E05_cluster-23)
         # Captures: season, episode, cluster number
-        pattern_sxxeyy_cluster = re.compile(
-            r'^S(\d+)E(\d+)_cluster-?(\d+)$',
-            re.IGNORECASE
-        )
-        match = pattern_sxxeyy_cluster.match(sanitized)
+        match = PATTERN_SXXEYY_CLUSTER.match(sanitized)
         if match:
             season = int(match.group(1))
             episode = int(match.group(2))
@@ -89,11 +91,7 @@ class EpisodeService:
 
         # Pattern 2: SxxEyy_CharacterName (e.g., S01E05_Rachel)
         # Captures: season, episode, character name
-        pattern_sxxeyy_char = re.compile(
-            r'^S(\d+)E(\d+)_(.+)$',
-            re.IGNORECASE
-        )
-        match = pattern_sxxeyy_char.match(sanitized)
+        match = PATTERN_SXXEYY_CHAR.match(sanitized)
         if match:
             season = int(match.group(1))
             episode = int(match.group(2))
@@ -108,11 +106,7 @@ class EpisodeService:
 
         # Pattern 3: cluster_N (legacy format, e.g., cluster_123)
         # Captures: cluster number
-        pattern_legacy_cluster = re.compile(
-            r'^cluster_(\d+)$',
-            re.IGNORECASE
-        )
-        match = pattern_legacy_cluster.match(sanitized)
+        match = PATTERN_LEGACY_CLUSTER.match(sanitized)
         if match:
             cluster_num = int(match.group(1))
             result = {

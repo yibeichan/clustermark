@@ -10,7 +10,7 @@ class UUID(TypeDecorator):
     """Platform-independent UUID type.
 
     Uses PostgreSQL's UUID type when available, otherwise uses
-    CHAR(36) storing as stringified hex values for SQLite compatibility.
+    Text(36) storing as stringified hex values for SQLite compatibility.
     """
     impl = Text
     cache_ok = True
@@ -22,12 +22,10 @@ class UUID(TypeDecorator):
             return dialect.type_descriptor(Text(36))
 
     def process_bind_param(self, value, dialect):
+        """Convert UUID to string for storage (works for both PostgreSQL and SQLite)."""
         if value is None:
             return value
-        elif dialect.name == 'postgresql':
-            return str(value) if isinstance(value, uuid_pkg.UUID) else value
-        else:
-            return str(value) if isinstance(value, uuid_pkg.UUID) else value
+        return str(value) if isinstance(value, uuid_pkg.UUID) else value
 
     def process_result_value(self, value, dialect):
         if value is None:
