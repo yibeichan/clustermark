@@ -18,7 +18,7 @@ class Episode(Base):
 
     clusters = relationship("Cluster", back_populates="episode", cascade="all, delete-orphan")
     # Images belong to Cluster (primary parent). Episode relationship for queries only.
-    # Cascade handled at database level via FK ondelete='CASCADE'
+    # No cascade - deletion happens through Cluster (single cascade path: Episode → Cluster → Image)
     images = relationship("Image", back_populates="episode")
 
 class Cluster(Base):
