@@ -1,0 +1,51 @@
+name: clustermark
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  # Python version
+  - python=3.11
+
+  # Core web framework
+  - fastapi=0.104.1
+  - uvicorn=0.24.0
+
+  # Database
+  - sqlalchemy=2.0.23
+  - alembic=1.12.1
+  - psycopg2=2.9.9
+
+  # FastAPI dependencies
+  - python-multipart=0.0.6
+  - aiofiles=23.2.1
+
+  # Authentication
+  - python-jose=3.3.0
+  - cryptography
+  - passlib=1.7.4
+  - bcrypt
+
+  # Data validation
+  - pydantic=2.5.0
+  - pydantic-settings=2.1.0
+
+  # Image processing
+  - pillow=10.1.0
+
+  # Testing
+  - pytest=7.4.3
+  - pytest-asyncio=0.21.1
+  - pytest-cov
+
+  # Development tools
+  - black
+  - flake8
+  - mypy
+
+  # Utilities
+  - pip
+
+  # Pip dependencies (if conda versions don't match exactly)
+  - pip:
+    - python-jose[cryptography]==3.3.0
+    - passlib[bcrypt]==1.7.4

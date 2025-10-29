@@ -1,13 +1,43 @@
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, ARRAY, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, ARRAY, UniqueConstraint, TypeDecorator
+from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func, text
 from app.database import Base
+import uuid as uuid_pkg
+
+
+class UUID(TypeDecorator):
+    """Platform-independent UUID type.
+
+    Uses PostgreSQL's UUID type when available, otherwise uses
+    Text(36) storing as stringified hex values for SQLite compatibility.
+    """
+    impl = Text
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(PostgreSQLUUID())
+        else:
+            return dialect.type_descriptor(Text(36))
+
+    def process_bind_param(self, value, dialect):
+        """Convert UUID to string for storage (works for both PostgreSQL and SQLite)."""
+        if value is None:
+            return value
+        return str(value) if isinstance(value, uuid_pkg.UUID) else value
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if not isinstance(value, uuid_pkg.UUID):
+            return uuid_pkg.UUID(value)
+        return value
 
 class Episode(Base):
     __tablename__ = "episodes"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text('gen_random_uuid()'))
+    id = Column(UUID(), primary_key=True, server_default=text('gen_random_uuid()'))
     name = Column(String(255), nullable=False)
     upload_timestamp = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(String(20), server_default=text("'pending'"))
@@ -24,8 +54,8 @@ class Episode(Base):
 class Cluster(Base):
     __tablename__ = "clusters"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text('gen_random_uuid()'))
-    episode_id = Column(UUID(as_uuid=True), ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False)
+    id = Column(UUID(), primary_key=True, server_default=text('gen_random_uuid()'))
+    episode_id = Column(UUID(), ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False)
     cluster_name = Column(String(100), nullable=False)
     image_paths = Column(ARRAY(Text))
     is_single_person = Column(Boolean, nullable=True)
@@ -43,8 +73,8 @@ class Cluster(Base):
 class SplitAnnotation(Base):
     __tablename__ = "split_annotations"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text('gen_random_uuid()'))
-    cluster_id = Column(UUID(as_uuid=True), ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False)
+    id = Column(UUID(), primary_key=True, server_default=text('gen_random_uuid()'))
+    cluster_id = Column(UUID(), ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False)
     scene_track_pattern = Column(String(100), nullable=False)
     person_name = Column(String(255), nullable=False)
     image_paths = Column(ARRAY(Text))
@@ -54,7 +84,7 @@ class SplitAnnotation(Base):
 class Annotator(Base):
     __tablename__ = "annotators"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text('gen_random_uuid()'))
+    id = Column(UUID(), primary_key=True, server_default=text('gen_random_uuid()'))
     session_token = Column(String(255), unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_tasks = Column(Integer, server_default=text('0'))
@@ -72,10 +102,10 @@ class Image(Base):
         UniqueConstraint('cluster_id', 'file_path', name='uix_cluster_filepath'),
     )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text('gen_random_uuid()'))
-    cluster_id = Column(UUID(as_uuid=True), ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False)
+    id = Column(UUID(), primary_key=True, server_default=text('gen_random_uuid()'))
+    cluster_id = Column(UUID(), ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False)
     # episode_id FK without CASCADE - deletion cascades through Cluster (single path)
-    episode_id = Column(UUID(as_uuid=True), ForeignKey("episodes.id"), nullable=False)
+    episode_id = Column(UUID(), ForeignKey("episodes.id"), nullable=False)
     file_path = Column(Text, nullable=False)
     filename = Column(String(255), nullable=False)
     initial_label = Column(String(255), nullable=True)
