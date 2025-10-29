@@ -54,7 +54,45 @@ A web-based annotation system for validating and correcting automated face clust
    - **Backend API**: http://localhost:8000
    - **API Documentation**: http://localhost:8000/docs
 
-### Option 2: Manual Setup
+### Option 2: Manual Setup with Micromamba (Recommended for Development)
+
+1. **Clone and setup:**
+   ```bash
+   git clone git@github.com:yibeichan/clustermark.git
+   cd clustermark
+   ```
+
+2. **Create environment with micromamba:**
+   ```bash
+   # One-command environment setup (includes all dependencies)
+   micromamba env create -f environment.yml
+   micromamba activate clustermark
+   ```
+
+3. **Backend setup:**
+   ```bash
+   cd backend
+
+   # Set up database (ensure PostgreSQL is running)
+   export DATABASE_URL="postgresql://user:password@localhost:5432/clustermark"
+   alembic upgrade head
+
+   # Start backend server
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+4. **Frontend setup (in another terminal):**
+   ```bash
+   cd frontend
+
+   # Install dependencies
+   npm install
+
+   # Start development server
+   npm run dev
+   ```
+
+### Option 3: Manual Setup with venv
 
 1. **Clone and setup:**
    ```bash
@@ -65,18 +103,18 @@ A web-based annotation system for validating and correcting automated face clust
 2. **Backend setup:**
    ```bash
    cd backend
-   
+
    # Create virtual environment
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
-   
+
    # Install dependencies
    pip install -r requirements.txt
-   
+
    # Set up database (ensure PostgreSQL is running)
    export DATABASE_URL="postgresql://user:password@localhost:5432/clustermark"
    alembic upgrade head
-   
+
    # Start backend server
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
@@ -84,10 +122,10 @@ A web-based annotation system for validating and correcting automated face clust
 3. **Frontend setup (in another terminal):**
    ```bash
    cd frontend
-   
+
    # Install dependencies
    npm install
-   
+
    # Start development server
    npm run dev
    ```
@@ -96,25 +134,55 @@ A web-based annotation system for validating and correcting automated face clust
 
 ### Step 1: Prepare Your Data
 
-ClusterMark expects ZIP files containing cluster folders from your facetracker pipeline:
+ClusterMark supports multiple folder naming formats for flexibility:
+
+#### **Format 1: Episode Metadata with Season/Episode (Recommended)**
+Use this format when annotating TV shows like Friends:
+
+```
+Friends_S01E05.zip
+└── Friends_S01E05/
+    ├── S01E05_cluster-01/         # Unlabeled cluster (season 1, episode 5)
+    │   ├── scene_0_track_1_frame_001.jpg
+    │   ├── scene_0_track_1_frame_015.jpg
+    │   └── scene_2_track_5_frame_108.jpg
+    ├── S01E05_Rachel/             # Pre-labeled cluster (season 1, episode 5, character: Rachel)
+    │   ├── scene_1_track_3_frame_042.jpg
+    │   └── scene_1_track_3_frame_055.jpg
+    ├── S01E05_cluster-02/
+    └── S01E05_Monica/
+```
+
+**Folder Naming Patterns:**
+- `S01E05_cluster-23` → Season 1, Episode 5, Cluster 23 (unlabeled)
+- `S01E05_Rachel` → Season 1, Episode 5, Pre-labeled as "Rachel"
+- `s01e05_joey` → Case-insensitive (works the same)
+
+#### **Format 2: Legacy Cluster Format**
+For backward compatibility with existing pipelines:
 
 ```
 your_episode.zip
 └── episode_name/
     ├── cluster_01/
     │   ├── scene_0_track_1_frame_001.jpg
-    │   ├── scene_0_track_1_frame_015.jpg
-    │   ├── scene_0_track_1_frame_032.jpg
-    │   └── scene_2_track_5_frame_108.jpg
+    │   └── scene_0_track_1_frame_015.jpg
     ├── cluster_02/
-    │   ├── scene_1_track_3_frame_042.jpg
-    │   ├── scene_1_track_3_frame_055.jpg
-    │   └── scene_3_track_7_frame_201.jpg
     └── cluster_XX/
-        └── ...
 ```
 
-**Important**: Image filenames must follow the pattern `scene_X_track_Y_frame_Z.jpg` for proper grouping in split annotations.
+#### **Format 3: Custom Names**
+Any folder name works - the system will use it as a fallback label:
+
+```
+your_episode.zip
+└── episode_name/
+    ├── Unknown_Person_A/
+    ├── Background_Character_1/
+    └── CustomName123/
+```
+
+**Important**: Image filenames should follow the pattern `scene_X_track_Y_frame_Z.jpg` for proper grouping in split annotations.
 
 ### Step 2: Upload Episode
 
