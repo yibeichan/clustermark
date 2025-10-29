@@ -56,15 +56,22 @@ def backfill_images():
             # Fetch cluster objects for this batch
             clusters = db.query(Cluster).filter(Cluster.id.in_(batch_ids)).all()
 
+            # Optimize: Find all clusters in batch that already have images (1 query vs N queries)
+            clusters_with_images = set(
+                row[0] for row in
+                db.query(Image.cluster_id)
+                  .filter(Image.cluster_id.in_(batch_ids))
+                  .distinct()
+                  .all()
+            )
+
             for cluster in clusters:
                 # Skip clusters with no image_paths
                 if not cluster.image_paths:
                     continue
 
-                # Check if this cluster already has Image records using EXISTS (faster)
-                image_exists = db.query(exists().where(Image.cluster_id == cluster.id)).scalar()
-
-                if image_exists:
+                # Check if this cluster already has Image records (O(1) set lookup)
+                if cluster.id in clusters_with_images:
                     print(f"  Cluster {cluster.cluster_name}: Already has images, skipping")
                     continue
 
