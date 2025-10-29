@@ -139,14 +139,21 @@ class EpisodeService:
         clusters = await self._parse_clusters(episode_path)
         logger.info(f"Found {len(clusters)} clusters in episode {episode_name}")
 
-        # Extract episode-level metadata from first cluster (if available)
+        # Extract episode-level metadata from clusters (Codex P1 fix)
+        # Scan all clusters for first valid SxxEyy metadata, not just clusters[0]
+        # Path.iterdir() order is non-deterministic - first item might be legacy/empty
         episode_season = None
         episode_number = None
-        if clusters:
-            first_cluster_meta = self._parse_folder_name(clusters[0]["name"])
-            episode_season = first_cluster_meta.get("season")
-            episode_number = first_cluster_meta.get("episode")
-            logger.info(f"Episode metadata: season={episode_season}, episode={episode_number}")
+        for cluster_data in clusters:
+            parsed = self._parse_folder_name(cluster_data["name"])
+            if parsed.get("season") is not None and parsed.get("episode") is not None:
+                episode_season = parsed.get("season")
+                episode_number = parsed.get("episode")
+                logger.info(f"Episode metadata from cluster '{cluster_data['name']}': season={episode_season}, episode={episode_number}")
+                break  # Use first valid SxxEyy metadata found
+
+        if episode_season is None and episode_number is None and clusters:
+            logger.info("No SxxEyy metadata found in clusters, episode will have season=None/episode_number=None")
 
         # Create Episode record
         episode = models.Episode(
