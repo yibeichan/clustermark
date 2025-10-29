@@ -55,12 +55,9 @@ def test_db():
                     column.server_default = None
                     column.default = uuid_pkg.uuid4
 
-    try:
-        # Create tables
-        Base.metadata.create_all(bind=engine)
-    except Exception:
-        # If metadata was already modified, just create tables
-        Base.metadata.create_all(bind=engine)
+    # Create tables (Gemini MEDIUM: Removed broad except to allow errors to fail clearly)
+    # Function-scoped fixtures shouldn't have metadata modification issues between runs
+    Base.metadata.create_all(bind=engine)
 
     # Create session
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

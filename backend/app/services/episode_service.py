@@ -41,12 +41,14 @@ class EpisodeService:
         # Remove null bytes (injection attacks)
         sanitized = name.replace('\x00', '')
 
-        # Remove path traversal attempts
-        sanitized = sanitized.replace('..', '')
+        # Remove path separators FIRST to prevent bypasses (Gemini CRITICAL)
+        # Must happen before '..' removal to prevent attacks like '..//' → '..'
+        sanitized = sanitized.replace('/', '').replace('\\', '')
 
-        # Remove path separators
-        sanitized = sanitized.replace('/', '')
-        sanitized = sanitized.replace('\\', '')
+        # Repeatedly remove '..' to handle bypasses like '....' → '..' (Gemini CRITICAL)
+        # Simple replace('..', '') can be defeated with '....' which becomes '..' after one pass
+        while '..' in sanitized:
+            sanitized = sanitized.replace('..', '')
 
         logger.debug(f"Sanitized '{name}' → '{sanitized}'")
         return sanitized
@@ -155,7 +157,9 @@ class EpisodeService:
             episode_number=episode_number
         )
         self.db.add(episode)
-        self.db.commit()
+        # Use flush() instead of commit() to maintain atomicity (Gemini HIGH)
+        # If cluster/image processing fails, entire upload will rollback
+        self.db.flush()
         self.db.refresh(episode)
         logger.info(f"Created Episode record: id={episode.id}")
 
@@ -165,6 +169,23 @@ class EpisodeService:
         for cluster_data in clusters:
             # Parse folder name to extract metadata
             parsed = self._parse_folder_name(cluster_data["name"])
+
+            # Validate episode metadata consistency (Gemini MEDIUM)
+            # Warn if clusters from different episodes mixed in same upload
+            if episode_season is not None and parsed.get("season") is not None:
+                if parsed.get("season") != episode_season:
+                    logger.warning(
+                        f"Episode metadata mismatch: Cluster '{cluster_data['name']}' "
+                        f"has season={parsed.get('season')} but episode has season={episode_season}. "
+                        f"User may have packaged clusters from different episodes."
+                    )
+            if episode_number is not None and parsed.get("episode") is not None:
+                if parsed.get("episode") != episode_number:
+                    logger.warning(
+                        f"Episode metadata mismatch: Cluster '{cluster_data['name']}' "
+                        f"has episode={parsed.get('episode')} but episode has episode={episode_number}. "
+                        f"User may have packaged clusters from different episodes."
+                    )
 
             # Create Cluster record
             cluster = models.Cluster(
@@ -207,6 +228,7 @@ class EpisodeService:
 
         Supports any folder name format (not just cluster_* prefix).
         Searches for .jpg, .jpeg, .png image files (case-insensitive).
+        Filters out system/hidden directories like __MACOSX.
 
         Args:
             episode_path: Path to extracted episode directory
@@ -216,21 +238,31 @@ class EpisodeService:
         """
         clusters = []
         for cluster_dir in episode_path.iterdir():
-            if cluster_dir.is_dir():
-                # Collect images (case-insensitive extension matching)
-                images = []
-                for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
-                    for img_file in cluster_dir.glob(ext):
-                        images.append(str(img_file.relative_to(self.upload_dir)))
+            if not cluster_dir.is_dir():
+                continue
 
-                if images:
-                    clusters.append({
-                        "name": cluster_dir.name,
-                        "images": images
-                    })
-                    logger.debug(f"Found cluster: {cluster_dir.name} with {len(images)} images")
-                else:
-                    logger.warning(f"Skipping empty cluster directory: {cluster_dir.name}")
+            # Skip system/hidden directories (Codex P1)
+            # ZIP archives from macOS contain __MACOSX with preview images (._*.jpg)
+            # These would be imported as bogus clusters if not filtered
+            if cluster_dir.name.startswith('__') or cluster_dir.name.startswith('.'):
+                logger.debug(f"Skipping system/hidden directory: {cluster_dir.name}")
+                continue
+
+            # Collect images (Pythonic case-insensitive matching - Gemini MEDIUM)
+            # More efficient than multiple glob() calls for each extension
+            images = []
+            for item in cluster_dir.iterdir():
+                if item.is_file() and item.suffix.lower() in {'.jpg', '.jpeg', '.png'}:
+                    images.append(str(item.relative_to(self.upload_dir)))
+
+            if images:
+                clusters.append({
+                    "name": cluster_dir.name,
+                    "images": images
+                })
+                logger.debug(f"Found cluster: {cluster_dir.name} with {len(images)} images")
+            else:
+                logger.warning(f"Skipping empty cluster directory: {cluster_dir.name}")
 
         return clusters
 
