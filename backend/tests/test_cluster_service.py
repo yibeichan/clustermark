@@ -323,6 +323,60 @@ class TestMarkOutliers:
         # Cluster metadata should reflect no outliers
         assert cluster.outlier_count == 0
 
+    def test_mark_outliers_invalid_cluster(self, test_db):
+        """Test that marking outliers with invalid cluster_id raises 404 (Gemini CRITICAL)."""
+        service = ClusterService(test_db)
+
+        request = schemas.OutlierSelectionRequest(
+            cluster_id="00000000-0000-0000-0000-000000000000",
+            outlier_image_ids=[]
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            service.mark_outliers(request)
+
+        assert exc_info.value.status_code == 404
+
+    def test_mark_outliers_cross_cluster_security(self, test_db, sample_episode_with_images):
+        """Test that mark_outliers doesn't modify images from other clusters (Gemini CRITICAL)."""
+        service = ClusterService(test_db)
+
+        # Create a second cluster
+        episode = sample_episode_with_images["episode"]
+        cluster2 = models.Cluster(
+            episode_id=episode.id,
+            cluster_name="second_cluster",
+            image_paths=None,
+            initial_label="cluster-2"
+        )
+        test_db.add(cluster2)
+        test_db.flush()
+
+        # Add image to cluster2
+        image_cluster2 = models.Image(
+            cluster_id=cluster2.id,
+            episode_id=episode.id,
+            file_path="uploads/test/other_image.jpg",
+            filename="other_image.jpg",
+            initial_label="cluster-2",
+            annotation_status="pending"
+        )
+        test_db.add(image_cluster2)
+        test_db.commit()
+
+        # Try to mark cluster2's image as outlier using cluster1's ID
+        cluster1 = sample_episode_with_images["cluster"]
+        request = schemas.OutlierSelectionRequest(
+            cluster_id=cluster1.id,
+            outlier_image_ids=[image_cluster2.id]  # Image from different cluster
+        )
+
+        service.mark_outliers(request)
+
+        # Image should NOT be marked as outlier (security check)
+        test_db.refresh(image_cluster2)
+        assert image_cluster2.annotation_status == "pending"  # Still pending, not outlier
+
 
 class TestAnnotateClusterBatch:
     """Test batch annotation functionality."""
@@ -431,15 +485,40 @@ class TestAnnotateClusterBatch:
         assert episode.status == "pending"  # Not completed yet
 
     def test_batch_annotation_invalid_cluster(self, test_db):
-        """Test that invalid cluster_id raises exception."""
+        """Test that invalid cluster_id raises HTTPException (Gemini HIGH fix)."""
         service = ClusterService(test_db)
 
         annotation = schemas.ClusterAnnotateBatch(person_name="Test", is_custom_label=False)
 
-        # Should handle invalid cluster ID gracefully
-        result = service.annotate_cluster_batch("00000000-0000-0000-0000-000000000000", annotation)
-        # Implementation should either raise HTTPException or return error status
-        # We'll verify behavior after implementation
+        # Should raise HTTPException with 404 status code
+        with pytest.raises(HTTPException) as exc_info:
+            service.annotate_cluster_batch("00000000-0000-0000-0000-000000000000", annotation)
+
+        assert exc_info.value.status_code == 404
+
+    def test_batch_annotation_prevents_double_counting(self, test_db, sample_episode_with_images):
+        """Test that calling annotate_cluster_batch twice doesn't double-count (Codex P1)."""
+        service = ClusterService(test_db)
+        cluster = sample_episode_with_images["cluster"]
+        episode = sample_episode_with_images["episode"]
+
+        annotation = schemas.ClusterAnnotateBatch(person_name="Rachel", is_custom_label=False)
+
+        # First annotation
+        result1 = service.annotate_cluster_batch(str(cluster.id), annotation)
+        assert result1["status"] == "completed"
+
+        test_db.refresh(episode)
+        first_count = episode.annotated_clusters
+        assert first_count == 1
+
+        # Second annotation (retry/duplicate)
+        result2 = service.annotate_cluster_batch(str(cluster.id), annotation)
+        assert result2["status"] == "completed"
+
+        # Count should NOT increase (Codex P1 fix)
+        test_db.refresh(episode)
+        assert episode.annotated_clusters == first_count  # Still 1, not 2!
 
 
 class TestAnnotateOutliers:

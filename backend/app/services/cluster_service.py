@@ -126,29 +126,42 @@ class ClusterService:
 
         Returns:
             Dict with status and count of marked outliers
+
+        Raises:
+            HTTPException: If cluster not found (404)
         """
+        # Validate cluster exists first (Gemini CRITICAL: fail fast)
+        cluster = self.db.query(models.Cluster).filter(
+            models.Cluster.id == request.cluster_id
+        ).first()
+        if not cluster:
+            raise HTTPException(status_code=404, detail="Cluster not found")
+
         # Update Image status in bulk (avoid N+1 queries)
+        # Add cluster_id filter to prevent cross-cluster modifications (Gemini CRITICAL)
         if request.outlier_image_ids:
             self.db.query(models.Image).filter(
-                models.Image.id.in_(request.outlier_image_ids)
+                models.Image.id.in_(request.outlier_image_ids),
+                models.Image.cluster_id == request.cluster_id  # Security: verify ownership
             ).update(
                 {"annotation_status": "outlier"},
                 synchronize_session=False
             )
 
-        # Update cluster metadata
-        cluster = self.db.query(models.Cluster).filter(
-            models.Cluster.id == request.cluster_id
-        ).first()
-        if cluster:
-            outlier_count = len(request.outlier_image_ids)
-            cluster.has_outliers = outlier_count > 0
-            cluster.outlier_count = outlier_count
+        # Recount total outliers from database (Gemini CRITICAL: ensure accuracy)
+        # This makes the operation truly idempotent and handles retries correctly
+        outlier_count = self.db.query(models.Image).filter(
+            models.Image.cluster_id == request.cluster_id,
+            models.Image.annotation_status == "outlier"
+        ).count()
+
+        cluster.has_outliers = outlier_count > 0
+        cluster.outlier_count = outlier_count
 
         self.db.commit()
         return {
             "status": "outliers_marked",
-            "count": len(request.outlier_image_ids)
+            "count": outlier_count  # Return actual count from DB, not request length
         }
 
     def annotate_cluster_batch(
@@ -163,9 +176,9 @@ class ClusterService:
         in Path B after outliers have been annotated individually.
 
         Updates:
-        - Image.current_label and annotation_status for non-outlier images
+        - Image.current_label and annotation_status for pending images
         - Cluster.person_name, is_single_person, annotation_status
-        - Episode.annotated_clusters counter
+        - Episode.annotated_clusters counter (only if not already completed)
 
         Args:
             cluster_id: UUID of the cluster
@@ -173,10 +186,23 @@ class ClusterService:
 
         Returns:
             Dict with completion status
+
+        Raises:
+            HTTPException: If cluster not found (404)
         """
         # Convert string UUID to UUID object if needed
         if isinstance(cluster_id, str):
             cluster_id = uuid_pkg.UUID(cluster_id)
+
+        # Validate cluster exists first (Gemini HIGH: fail fast)
+        cluster = self.db.query(models.Cluster).filter(
+            models.Cluster.id == cluster_id
+        ).first()
+        if not cluster:
+            raise HTTPException(status_code=404, detail="Cluster not found")
+
+        # Check if cluster is already completed (Codex P1: prevent double-counting)
+        cluster_was_already_completed = cluster.annotation_status == "completed"
 
         # Update only pending images (don't overwrite already-annotated outliers)
         self.db.query(models.Image).filter(
@@ -189,18 +215,18 @@ class ClusterService:
         }, synchronize_session=False)
 
         # Update cluster status
-        cluster = self.db.query(models.Cluster).filter(
-            models.Cluster.id == cluster_id
-        ).first()
-        if cluster:
-            cluster.person_name = annotation.person_name
-            cluster.is_single_person = True
-            cluster.annotation_status = "completed"
+        cluster.person_name = annotation.person_name
+        cluster.is_single_person = True
+        cluster.annotation_status = "completed"
 
-            # Update episode progress counter
+        # Update episode progress counter only if cluster wasn't already completed
+        # This prevents double-counting on retries (Codex P1)
+        if not cluster_was_already_completed:
+            # Use with_for_update() to lock row and prevent race conditions (Gemini MEDIUM)
             episode = self.db.query(models.Episode).filter(
                 models.Episode.id == cluster.episode_id
-            ).first()
+            ).with_for_update().first()
+
             if episode:
                 episode.annotated_clusters += 1
                 # Update episode status if all clusters annotated
@@ -223,11 +249,22 @@ class ClusterService:
         Returns:
             Dict with status and count of annotated outliers
         """
-        # Update each outlier image (already a small list, no N+1 concern)
+        # Handle empty list edge case
+        if not annotations:
+            return {"status": "outliers_annotated", "count": 0}
+
+        # Fetch all images in single query to avoid N+1 (Gemini MEDIUM)
+        image_ids = [annotation.image_id for annotation in annotations]
+        images = self.db.query(models.Image).filter(
+            models.Image.id.in_(image_ids)
+        ).all()
+
+        # Create map for O(1) lookup
+        image_map = {image.id: image for image in images}
+
+        # Update images in memory (single commit at end)
         for annotation in annotations:
-            image = self.db.query(models.Image).filter(
-                models.Image.id == annotation.image_id
-            ).first()
+            image = image_map.get(annotation.image_id)
             if image:
                 image.current_label = annotation.person_name
                 image.annotation_status = "annotated"
@@ -236,5 +273,5 @@ class ClusterService:
         self.db.commit()
         return {
             "status": "outliers_annotated",
-            "count": len(annotations)
+            "count": len([a for a in annotations if a.image_id in image_map])
         }
