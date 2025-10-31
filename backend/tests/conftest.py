@@ -40,9 +40,11 @@ def test_db():
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
-    # For SQLite testing, modify UUID columns to use Python default instead of DB default
-    # since SQLite doesn't support gen_random_uuid()
+    # For SQLite testing, modify UUID columns and ARRAY columns
+    # SQLite doesn't support gen_random_uuid() or ARRAY types
     import uuid as uuid_pkg
+    from sqlalchemy.schema import ColumnDefault
+    from sqlalchemy import Text, ARRAY
 
     # Temporarily modify the metadata for SQLite
     for table in Base.metadata.tables.values():
@@ -53,7 +55,11 @@ def test_db():
                 if 'gen_random_uuid' in default_str:
                     # Remove server default and add Python-level default
                     column.server_default = None
-                    column.default = uuid_pkg.uuid4
+                    column.default = ColumnDefault(uuid_pkg.uuid4)
+
+            # Replace ARRAY(Text) with Text for SQLite (store as JSON-like string)
+            if isinstance(column.type, ARRAY):
+                column.type = Text()
 
     # Create tables (Gemini MEDIUM: Removed broad except to allow errors to fail clearly)
     # Function-scoped fixtures shouldn't have metadata modification issues between runs
