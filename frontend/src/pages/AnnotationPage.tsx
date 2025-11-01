@@ -37,10 +37,19 @@ export default function AnnotationPage() {
   const [selectedOutlierIds, setSelectedOutlierIds] = useState<Set<string>>(
     new Set(),
   );
+
+  // Fix 1 (CRITICAL): Store all outlier images, not just from current page
+  const [outlierImages, setOutlierImages] = useState<Image[]>([]);
+
+  // Fix 3 (P1): Store both label and isCustom flag for outliers
   const [outlierAnnotations, setOutlierAnnotations] = useState<
-    Map<string, string>
+    Map<string, { label: string; isCustom: boolean }>
   >(new Map());
+
+  // Fix 2 (P1): Track custom flag for batch label
   const [batchLabel, setBatchLabel] = useState("");
+  const [batchIsCustomLabel, setBatchIsCustomLabel] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
 
   // Load cluster metadata on mount
@@ -56,6 +65,18 @@ export default function AnnotationPage() {
       loadPaginatedImages(clusterId, currentPage, pageSize);
     }
   }, [clusterId, currentPage, pageSize, step]);
+
+  // Fix 4 (MEDIUM): Safe navigation with cleanup
+  useEffect(() => {
+    if (step === "done") {
+      const timer = setTimeout(() => {
+        navigate(`/episodes/${cluster?.episode_id}`);
+      }, 1500);
+
+      // Cleanup: clear timer if component unmounts
+      return () => clearTimeout(timer);
+    }
+  }, [step, cluster, navigate]);
 
   const loadClusterMetadata = async (id: string) => {
     try {
@@ -83,6 +104,23 @@ export default function AnnotationPage() {
     }
   };
 
+  // Fix 1 (CRITICAL): Load all outlier images after marking
+  const loadAllOutlierImages = async (id: string) => {
+    try {
+      // Fetch with large page size to get all outliers in one request
+      // Backend filters by annotation_status == "outlier"
+      const response = await clusterApi.getImagesPaginated(id, 1, 1000);
+      // Filter to only outlier status images (defense in depth)
+      const outliers = response.data.images.filter(
+        (img) => img.annotation_status === "outlier",
+      );
+      setOutlierImages(outliers);
+    } catch (err) {
+      setError("Failed to load outlier images");
+      throw err; // Re-throw to prevent step transition
+    }
+  };
+
   const toggleOutlier = (imageId: string) => {
     setSelectedOutlierIds((prev) => {
       const newSet = new Set(prev);
@@ -104,7 +142,7 @@ export default function AnnotationPage() {
       return;
     }
 
-    // Path B: Has outliers → mark outliers first
+    // Path B: Has outliers → mark outliers first, then load all outlier images
     setSubmitting(true);
     setError(null);
     try {
@@ -112,6 +150,10 @@ export default function AnnotationPage() {
         cluster_id: clusterId,
         outlier_image_ids: Array.from(selectedOutlierIds),
       });
+
+      // Fix 1 (CRITICAL): Load all outlier images before transitioning
+      await loadAllOutlierImages(clusterId);
+
       setStep("annotate-outliers");
     } catch (err: any) {
       // Phase 3 lesson: Backend returns detailed error messages
@@ -121,8 +163,10 @@ export default function AnnotationPage() {
     }
   };
 
-  const handleBatchLabelChange = (label: string, _isCustom: boolean) => {
+  // Fix 2 (P1): Store both label and custom flag
+  const handleBatchLabelChange = (label: string, isCustom: boolean) => {
     setBatchLabel(label);
+    setBatchIsCustomLabel(isCustom);
   };
 
   const handleBatchSubmit = async () => {
@@ -133,13 +177,10 @@ export default function AnnotationPage() {
     try {
       await clusterApi.annotateBatch(clusterId, {
         person_name: batchLabel.trim(),
-        is_custom_label: false, // LabelDropdown already handles this
+        is_custom_label: batchIsCustomLabel, // Fix 2: Use tracked custom flag
       });
       setStep("done");
-      // Navigate back after short delay
-      setTimeout(() => {
-        navigate(`/episodes/${cluster?.episode_id}`);
-      }, 1500);
+      // Fix 4: Navigation now handled by useEffect
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to save batch annotation");
     } finally {
@@ -147,15 +188,16 @@ export default function AnnotationPage() {
     }
   };
 
+  // Fix 3 (P1): Store both label and custom flag for outliers
   const handleOutlierLabelChange = (
     imageId: string,
     label: string,
-    _isCustom: boolean,
+    isCustom: boolean,
   ) => {
     setOutlierAnnotations((prev) => {
       const newMap = new Map(prev);
       if (label) {
-        newMap.set(imageId, label);
+        newMap.set(imageId, { label, isCustom });
       } else {
         newMap.delete(imageId);
       }
@@ -171,10 +213,10 @@ export default function AnnotationPage() {
     try {
       const annotations: OutlierAnnotation[] = Array.from(
         outlierAnnotations.entries(),
-      ).map(([image_id, person_name]) => ({
+      ).map(([image_id, { label, isCustom }]) => ({
         image_id,
-        person_name: person_name.trim(),
-        is_custom_label: false,
+        person_name: label.trim(),
+        is_custom_label: isCustom, // Fix 3: Use stored custom flag
       }));
       await clusterApi.annotateOutliers(annotations);
       setStep("label-remaining");
@@ -369,76 +411,73 @@ export default function AnnotationPage() {
       )}
 
       {/* Step 2 (Path B): Annotate outliers */}
-      {step === "annotate-outliers" && paginatedData && (
+      {/* Fix 1 (CRITICAL): Use outlierImages instead of paginatedData.images.filter() */}
+      {step === "annotate-outliers" && (
         <div className="card">
           <h3>Step 2: Annotate Outliers</h3>
           <p>
-            Assign names to each outlier image ({selectedOutlierIds.size}{" "}
-            images):
+            Assign names to each outlier image ({outlierImages.length} images):
           </p>
 
           <div>
-            {paginatedData.images
-              .filter((img) => selectedOutlierIds.has(img.id))
-              .map((image) => (
-                <div
-                  key={image.id}
+            {outlierImages.map((image) => (
+              <div
+                key={image.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "15px",
+                  marginBottom: "15px",
+                  padding: "10px",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                }}
+              >
+                <img
+                  src={`/uploads/${image.file_path}`}
+                  alt={image.filename}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "15px",
-                    marginBottom: "15px",
-                    padding: "10px",
-                    border: "1px solid #ddd",
-                    borderRadius: "4px",
+                    width: "100px",
+                    height: "100px",
+                    objectFit: "cover",
                   }}
-                >
-                  <img
-                    src={`/uploads/${image.file_path}`}
-                    alt={image.filename}
+                  onError={(e) => {
+                    e.currentTarget.src =
+                      "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4=";
+                  }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div
                     style={{
-                      width: "100px",
-                      height: "100px",
-                      objectFit: "cover",
+                      marginBottom: "5px",
+                      fontSize: "12px",
+                      color: "#666",
                     }}
-                    onError={(e) => {
-                      e.currentTarget.src =
-                        "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4=";
-                    }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        marginBottom: "5px",
-                        fontSize: "12px",
-                        color: "#666",
-                      }}
-                    >
-                      {image.filename}
-                    </div>
-                    <LabelDropdown
-                      value={outlierAnnotations.get(image.id) || ""}
-                      onChange={(label, isCustom) =>
-                        handleOutlierLabelChange(image.id, label, isCustom)
-                      }
-                      disabled={submitting}
-                    />
+                  >
+                    {image.filename}
                   </div>
+                  <LabelDropdown
+                    value={outlierAnnotations.get(image.id)?.label || ""}
+                    onChange={(label, isCustom) =>
+                      handleOutlierLabelChange(image.id, label, isCustom)
+                    }
+                    disabled={submitting}
+                  />
                 </div>
-              ))}
+              </div>
+            ))}
           </div>
 
           <div style={{ marginTop: "20px" }}>
             <p>
-              Annotated {outlierAnnotations.size} of {selectedOutlierIds.size}{" "}
+              Annotated {outlierAnnotations.size} of {outlierImages.length}{" "}
               outliers
             </p>
             <button
               className="button"
               onClick={handleOutliersSubmit}
               disabled={
-                outlierAnnotations.size !== selectedOutlierIds.size ||
-                submitting
+                outlierAnnotations.size !== outlierImages.length || submitting
               }
             >
               {submitting ? "Saving..." : "Continue to Label Remaining"}
