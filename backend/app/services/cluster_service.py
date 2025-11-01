@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from typing import List, Dict
+from collections import defaultdict
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
@@ -284,25 +285,64 @@ class ClusterService:
 
         Returns:
             Dict with status and count of annotated outliers
+
+        Raises:
+            HTTPException: If images don't exist, belong to different clusters,
+                          or are not marked as outliers (400)
         """
         # Handle empty list edge case
         if not annotations:
             return {"status": "outliers_annotated", "count": 0}
 
+        # Codex P1: Validate cluster ownership and outlier status to prevent
+        # cross-cluster attacks and accidental updates to non-outlier images
+        image_ids = [annotation.image_id for annotation in annotations]
+        images = (
+            self.db.query(models.Image).filter(models.Image.id.in_(image_ids)).all()
+        )
+
+        # Verify all requested images exist
+        if len(images) != len(image_ids):
+            found_ids = {img.id for img in images}
+            missing_ids = set(image_ids) - found_ids
+            raise HTTPException(
+                status_code=400, detail=f"Images not found: {missing_ids}"
+            )
+
+        # Verify all images belong to the same cluster (prevent cross-cluster attacks)
+        cluster_ids = {img.cluster_id for img in images}
+        if len(cluster_ids) > 1:
+            raise HTTPException(
+                status_code=400, detail="All images must belong to the same cluster"
+            )
+
+        # Verify all images are marked as outliers (prevent accidental updates to pending images)
+        non_outliers = [
+            str(img.id) for img in images if img.annotation_status != "outlier"
+        ]
+        if non_outliers:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Images must have outlier status: {non_outliers}",
+            )
+
         # Gemini HIGH: Group annotations by person_name to perform bulk updates
         # This avoids N+1 query problem (one UPDATE per annotation)
-        from collections import defaultdict
-
         updates_by_name = defaultdict(list)
         for annotation in annotations:
             updates_by_name[annotation.person_name].append(annotation.image_id)
 
         # Perform one bulk update per person_name (instead of N individual updates)
+        # Gemini HIGH + Codex P1: Filter by both ID and outlier status for safety
         total_updated = 0
         for person_name, image_ids_to_update in updates_by_name.items():
             result = (
                 self.db.query(models.Image)
-                .filter(models.Image.id.in_(image_ids_to_update))
+                .filter(
+                    models.Image.id.in_(image_ids_to_update),
+                    models.Image.annotation_status
+                    == "outlier",  # Gemini HIGH: explicit outlier check
+                )
                 .update(
                     {
                         "current_label": person_name,
