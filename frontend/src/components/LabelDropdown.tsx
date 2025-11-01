@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 const FRIENDS_CHARACTERS = [
-  'Chandler',
-  'Joey',
-  'Monica',
-  'Rachel',
-  'Ross',
-  'Phoebe',
+  "Chandler",
+  "Joey",
+  "Monica",
+  "Rachel",
+  "Ross",
+  "Phoebe",
 ] as const;
 
 interface LabelDropdownProps {
@@ -17,37 +17,48 @@ interface LabelDropdownProps {
 }
 
 export default function LabelDropdown({
-  value = '',
+  value = "",
   onChange,
   disabled = false,
-  placeholder = 'Select character...',
+  placeholder = "Select character...",
 }: LabelDropdownProps) {
-  const [selectedOption, setSelectedOption] = useState<string>('');
-  const [customLabel, setCustomLabel] = useState<string>('');
+  const [selectedOption, setSelectedOption] = useState<string>("");
+  const [customLabel, setCustomLabel] = useState<string>("");
   const [showCustomInput, setShowCustomInput] = useState(false);
 
+  // Gemini HIGH + Codex P1: Handle value prop changes including resets
   useEffect(() => {
     if (value) {
-      if (FRIENDS_CHARACTERS.includes(value as any)) {
+      if ((FRIENDS_CHARACTERS as readonly string[]).includes(value)) {
         setSelectedOption(value);
         setShowCustomInput(false);
-      } else if (value !== '') {
-        setSelectedOption('Other');
+        setCustomLabel("");
+      } else {
+        setSelectedOption("Other");
         setCustomLabel(value);
         setShowCustomInput(true);
       }
+    } else {
+      // Reset state when value is cleared (e.g., after saving annotation)
+      setSelectedOption("");
+      setCustomLabel("");
+      setShowCustomInput(false);
     }
   }, [value]);
 
+  // Gemini HIGH + Codex P1: Handle all dropdown selections including placeholder
   const handleDropdownChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = e.target.value;
     setSelectedOption(selected);
 
-    if (selected === 'Other') {
+    if (selected === "Other") {
       setShowCustomInput(true);
-    } else if (selected) {
+      setCustomLabel(""); // Clear any previous custom label
+    } else {
+      // Hide custom input for any non-Other selection (including placeholder)
       setShowCustomInput(false);
-      setCustomLabel('');
+      setCustomLabel("");
+      // Notify parent even when placeholder is selected (allows clearing selection)
       onChange(selected, false);
     }
   };
@@ -56,30 +67,38 @@ export default function LabelDropdown({
     setCustomLabel(e.target.value);
   };
 
-  const handleCustomLabelBlur = () => {
-    if (customLabel.trim()) {
-      onChange(customLabel.trim(), true);
+  // Gemini MEDIUM: Extract duplicate logic (DRY principle)
+  const commitCustomLabel = () => {
+    const trimmedLabel = customLabel.trim();
+    if (trimmedLabel) {
+      onChange(trimmedLabel, true);
     }
   };
 
-  const handleCustomLabelKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && customLabel.trim()) {
-      onChange(customLabel.trim(), true);
+  const handleCustomLabelBlur = () => {
+    commitCustomLabel();
+  };
+
+  const handleCustomLabelKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (e.key === "Enter") {
+      commitCustomLabel();
     }
   };
 
   return (
-    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+    <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
       <select
         value={selectedOption}
         onChange={handleDropdownChange}
         disabled={disabled}
         style={{
-          padding: '8px 12px',
-          fontSize: '14px',
-          minWidth: '150px',
-          borderRadius: '4px',
-          border: '1px solid #ccc',
+          padding: "8px 12px",
+          fontSize: "14px",
+          minWidth: "150px",
+          borderRadius: "4px",
+          border: "1px solid #ccc",
         }}
       >
         <option value="">{placeholder}</option>
@@ -102,11 +121,11 @@ export default function LabelDropdown({
           disabled={disabled}
           autoFocus
           style={{
-            padding: '8px 12px',
-            fontSize: '14px',
-            minWidth: '250px',
-            borderRadius: '4px',
-            border: '1px solid #ccc',
+            padding: "8px 12px",
+            fontSize: "14px",
+            minWidth: "250px",
+            borderRadius: "4px",
+            border: "1px solid #ccc",
           }}
         />
       )}

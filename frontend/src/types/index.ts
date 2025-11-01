@@ -52,6 +52,9 @@ export interface SplitAnnotationRequest {
 
 // Phase 3: New types for paginated cluster review and outlier workflow
 
+// Gemini MEDIUM: String literal union for type safety
+export type AnnotationStatus = "pending" | "outlier" | "annotated";
+
 export interface Image {
   id: string; // UUID serialized as string
   cluster_id: string;
@@ -60,7 +63,7 @@ export interface Image {
   filename: string;
   initial_label?: string;
   current_label?: string;
-  annotation_status: string; // "pending" | "outlier" | "annotated"
+  annotation_status: AnnotationStatus;
   annotated_at?: string; // ISO datetime string
 }
 
