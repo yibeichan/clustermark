@@ -85,25 +85,6 @@ export default function AnnotationPage() {
     }
   }, [step, cluster, navigate]);
 
-  // Fix 2 (P1): Seed outlier selection from existing backend state
-  useEffect(() => {
-    if (paginatedData && step === "review") {
-      // Check if any images on this page are already marked as outliers
-      paginatedData.images.forEach((image) => {
-        if (
-          image.annotation_status === "outlier" &&
-          !selectedOutlierIds.has(image.id)
-        ) {
-          // Seed from existing backend state
-          setSelectedOutlierIds((prev) => new Set(prev).add(image.id));
-          setSelectedOutlierImages((prev) =>
-            new Map(prev).set(image.id, image),
-          );
-        }
-      });
-    }
-  }, [paginatedData, step]); // Don't include selectedOutlierIds to avoid infinite loop
-
   const loadClusterMetadata = async (id: string) => {
     try {
       const response = await clusterApi.get(id);
@@ -175,9 +156,9 @@ export default function AnnotationPage() {
       // Fix 1 (CRITICAL): No need to fetch - we already have Image objects in selectedOutlierImages
       setStep("annotate-outliers");
     } catch (err: unknown) {
-      // Fix 5 (MEDIUM): Type-safe error handling
+      // Type-safe error handling with nullish coalescing
       const detail = (err as any)?.response?.data?.detail;
-      setError(detail || "Failed to mark outliers");
+      setError(detail ?? "Failed to mark outliers");
     } finally {
       setSubmitting(false);
     }
@@ -202,9 +183,9 @@ export default function AnnotationPage() {
       setStep("done");
       // Fix 4: Navigation now handled by useEffect
     } catch (err: unknown) {
-      // Fix 5 (MEDIUM): Type-safe error handling
+      // Type-safe error handling with nullish coalescing
       const detail = (err as any)?.response?.data?.detail;
-      setError(detail || "Failed to save batch annotation");
+      setError(detail ?? "Failed to save batch annotation");
     } finally {
       setSubmitting(false);
     }
@@ -243,9 +224,9 @@ export default function AnnotationPage() {
       await clusterApi.annotateOutliers(annotations);
       setStep("label-remaining");
     } catch (err: unknown) {
-      // Fix 5 (MEDIUM): Type-safe error handling
+      // Type-safe error handling with nullish coalescing
       const detail = (err as any)?.response?.data?.detail;
-      setError(detail || "Failed to save outlier annotations");
+      setError(detail ?? "Failed to save outlier annotations");
     } finally {
       setSubmitting(false);
     }
@@ -331,11 +312,12 @@ export default function AnnotationPage() {
                 <div
                   key={image.id}
                   className="image-item"
-                  onClick={() => toggleOutlier(image)}
+                  onClick={() => !submitting && toggleOutlier(image)}
                   style={{
-                    cursor: "pointer",
+                    cursor: submitting ? "not-allowed" : "pointer",
                     border: isSelected ? "3px solid red" : "1px solid #ddd",
                     padding: "5px",
+                    opacity: submitting ? 0.6 : 1,
                   }}
                 >
                   <img
