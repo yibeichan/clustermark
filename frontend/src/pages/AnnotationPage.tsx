@@ -40,12 +40,7 @@ export default function AnnotationPage() {
   // Workflow state
   const [step, setStep] = useState<WorkflowStep>("review");
 
-  // Fix 1 (CRITICAL): Store full Image objects, not just IDs
-  // - selectedOutlierIds: for UI highlighting (fast Set lookup)
-  // - selectedOutlierImages: preserve full Image data across pagination
-  const [selectedOutlierIds, setSelectedOutlierIds] = useState<Set<string>>(
-    new Set(),
-  );
+  // Store selected outlier images (Map provides both fast lookup and full objects)
   const [selectedOutlierImages, setSelectedOutlierImages] = useState<
     Map<string, Image>
   >(new Map());
@@ -62,9 +57,29 @@ export default function AnnotationPage() {
   const [submitting, setSubmitting] = useState(false);
 
   // Load cluster metadata on mount
+  // Fix: Prevent race condition with cleanup function (same pattern as pagination)
   useEffect(() => {
     if (clusterId) {
-      loadClusterMetadata(clusterId);
+      let isCancelled = false;
+
+      const loadMetadata = async () => {
+        try {
+          const response = await clusterApi.get(clusterId);
+          if (!isCancelled) {
+            setCluster(response.data);
+          }
+        } catch (err) {
+          if (!isCancelled) {
+            setError("Failed to load cluster metadata");
+          }
+        }
+      };
+
+      loadMetadata();
+
+      return () => {
+        isCancelled = true;
+      };
     }
   }, [clusterId]);
 
@@ -120,34 +135,23 @@ export default function AnnotationPage() {
     }
   }, [step, cluster, navigate]);
 
-  const loadClusterMetadata = async (id: string) => {
-    try {
-      const response = await clusterApi.get(id);
-      setCluster(response.data);
-    } catch (err) {
-      setError("Failed to load cluster metadata");
+  // Helper: Extract error handling logic (DRY principle)
+  const handleApiError = (error: unknown, defaultMessage: string) => {
+    if (axios.isAxiosError(error) && error.response?.data?.detail) {
+      setError(error.response.data.detail);
+    } else {
+      setError(defaultMessage);
     }
   };
 
-  // Fix 1 (CRITICAL): Toggle both ID set and Image map
+  // Toggle outlier selection (Map provides both lookup and storage)
   const toggleOutlier = (image: Image) => {
-    const imageId = image.id;
-    setSelectedOutlierIds((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(imageId)) {
-        newSet.delete(imageId);
-      } else {
-        newSet.add(imageId);
-      }
-      return newSet;
-    });
-
     setSelectedOutlierImages((prev) => {
       const newMap = new Map(prev);
-      if (newMap.has(imageId)) {
-        newMap.delete(imageId);
+      if (newMap.has(image.id)) {
+        newMap.delete(image.id);
       } else {
-        newMap.set(imageId, image); // Store full Image object
+        newMap.set(image.id, image);
       }
       return newMap;
     });
@@ -156,8 +160,19 @@ export default function AnnotationPage() {
   const handleContinue = async () => {
     if (!clusterId) return;
 
+    // P1 FIX: Check for pre-existing outliers from previous session
+    // If cluster has outliers but we haven't loaded them, we can't proceed safely
+    if (cluster?.has_outliers && selectedOutlierImages.size === 0) {
+      setError(
+        "This cluster has pre-existing outliers that need to be annotated. " +
+          "Please refresh the page or contact support. " +
+          "(Backend API limitation: cannot fetch existing outliers)",
+      );
+      return;
+    }
+
     // Path A: No outliers selected → batch label
-    if (selectedOutlierIds.size === 0) {
+    if (selectedOutlierImages.size === 0) {
       setStep("batch-label");
       return;
     }
@@ -168,18 +183,13 @@ export default function AnnotationPage() {
     try {
       await clusterApi.markOutliers({
         cluster_id: clusterId,
-        outlier_image_ids: Array.from(selectedOutlierIds),
+        outlier_image_ids: Array.from(selectedOutlierImages.keys()),
       });
 
       // Fix 1 (CRITICAL): No need to fetch - we already have Image objects in selectedOutlierImages
       setStep("annotate-outliers");
     } catch (err: unknown) {
-      // Type-safe error handling with axios type guard
-      if (axios.isAxiosError(err) && err.response?.data?.detail) {
-        setError(err.response.data.detail);
-      } else {
-        setError("Failed to mark outliers");
-      }
+      handleApiError(err, "Failed to mark outliers");
     } finally {
       setSubmitting(false);
     }
@@ -204,12 +214,7 @@ export default function AnnotationPage() {
       setStep("done");
       // Fix 4: Navigation now handled by useEffect
     } catch (err: unknown) {
-      // Type-safe error handling with axios type guard
-      if (axios.isAxiosError(err) && err.response?.data?.detail) {
-        setError(err.response.data.detail);
-      } else {
-        setError("Failed to save batch annotation");
-      }
+      handleApiError(err, "Failed to save batch annotation");
     } finally {
       setSubmitting(false);
     }
@@ -233,7 +238,9 @@ export default function AnnotationPage() {
   };
 
   const handleOutliersSubmit = async () => {
-    if (!clusterId || outlierAnnotations.size === 0) return;
+    // Defensive: guard mirrors button's disabled logic
+    if (!clusterId || outlierAnnotations.size !== selectedOutlierImages.size)
+      return;
 
     setSubmitting(true);
     setError(null);
@@ -248,12 +255,7 @@ export default function AnnotationPage() {
       await clusterApi.annotateOutliers(annotations);
       setStep("label-remaining");
     } catch (err: unknown) {
-      // Type-safe error handling with axios type guard
-      if (axios.isAxiosError(err) && err.response?.data?.detail) {
-        setError(err.response.data.detail);
-      } else {
-        setError("Failed to save outlier annotations");
-      }
+      handleApiError(err, "Failed to save outlier annotations");
     } finally {
       setSubmitting(false);
     }
@@ -334,7 +336,7 @@ export default function AnnotationPage() {
           {/* Image grid */}
           <div className="image-grid">
             {paginatedData.images.map((image: Image) => {
-              const isSelected = selectedOutlierIds.has(image.id);
+              const isSelected = selectedOutlierImages.has(image.id);
               return (
                 <button
                   key={image.id}
@@ -406,9 +408,9 @@ export default function AnnotationPage() {
           {/* Continue button */}
           <div style={{ marginTop: "20px" }}>
             <p>
-              {selectedOutlierIds.size === 0
+              {selectedOutlierImages.size === 0
                 ? "No outliers selected. Will batch label all images."
-                : `${selectedOutlierIds.size} outlier(s) selected. Will annotate them individually.`}
+                : `${selectedOutlierImages.size} outlier(s) selected. Will annotate them individually.`}
             </p>
             <button
               className="button"
@@ -531,7 +533,7 @@ export default function AnnotationPage() {
           <p>
             Assign a name to the remaining{" "}
             {paginatedData
-              ? paginatedData.total_count - selectedOutlierIds.size
+              ? paginatedData.total_count - selectedOutlierImages.size
               : 0}{" "}
             images:
           </p>
