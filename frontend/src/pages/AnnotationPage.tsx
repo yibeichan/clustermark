@@ -34,12 +34,16 @@ export default function AnnotationPage() {
 
   // Workflow state
   const [step, setStep] = useState<WorkflowStep>("review");
+
+  // Fix 1 (CRITICAL): Store full Image objects, not just IDs
+  // - selectedOutlierIds: for UI highlighting (fast Set lookup)
+  // - selectedOutlierImages: preserve full Image data across pagination
   const [selectedOutlierIds, setSelectedOutlierIds] = useState<Set<string>>(
     new Set(),
   );
-
-  // Fix 1 (CRITICAL): Store all outlier images, not just from current page
-  const [outlierImages, setOutlierImages] = useState<Image[]>([]);
+  const [selectedOutlierImages, setSelectedOutlierImages] = useState<
+    Map<string, Image>
+  >(new Map());
 
   // Fix 3 (P1): Store both label and isCustom flag for outliers
   const [outlierAnnotations, setOutlierAnnotations] = useState<
@@ -66,17 +70,39 @@ export default function AnnotationPage() {
     }
   }, [clusterId, currentPage, pageSize, step]);
 
-  // Fix 4 (MEDIUM): Safe navigation with cleanup
+  // Fix 4 (MEDIUM): Safe navigation with cleanup and null guard
   useEffect(() => {
     if (step === "done") {
       const timer = setTimeout(() => {
-        navigate(`/episodes/${cluster?.episode_id}`);
+        // Guard: ensure cluster and episode_id exist before navigating
+        if (cluster?.episode_id) {
+          navigate(`/episodes/${cluster.episode_id}`);
+        }
       }, 1500);
 
       // Cleanup: clear timer if component unmounts
       return () => clearTimeout(timer);
     }
   }, [step, cluster, navigate]);
+
+  // Fix 2 (P1): Seed outlier selection from existing backend state
+  useEffect(() => {
+    if (paginatedData && step === "review") {
+      // Check if any images on this page are already marked as outliers
+      paginatedData.images.forEach((image) => {
+        if (
+          image.annotation_status === "outlier" &&
+          !selectedOutlierIds.has(image.id)
+        ) {
+          // Seed from existing backend state
+          setSelectedOutlierIds((prev) => new Set(prev).add(image.id));
+          setSelectedOutlierImages((prev) =>
+            new Map(prev).set(image.id, image),
+          );
+        }
+      });
+    }
+  }, [paginatedData, step]); // Don't include selectedOutlierIds to avoid infinite loop
 
   const loadClusterMetadata = async (id: string) => {
     try {
@@ -104,24 +130,9 @@ export default function AnnotationPage() {
     }
   };
 
-  // Fix 1 (CRITICAL): Load all outlier images after marking
-  const loadAllOutlierImages = async (id: string) => {
-    try {
-      // Fetch with large page size to get all outliers in one request
-      // Backend filters by annotation_status == "outlier"
-      const response = await clusterApi.getImagesPaginated(id, 1, 1000);
-      // Filter to only outlier status images (defense in depth)
-      const outliers = response.data.images.filter(
-        (img) => img.annotation_status === "outlier",
-      );
-      setOutlierImages(outliers);
-    } catch (err) {
-      setError("Failed to load outlier images");
-      throw err; // Re-throw to prevent step transition
-    }
-  };
-
-  const toggleOutlier = (imageId: string) => {
+  // Fix 1 (CRITICAL): Toggle both ID set and Image map
+  const toggleOutlier = (image: Image) => {
+    const imageId = image.id;
     setSelectedOutlierIds((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(imageId)) {
@@ -130,6 +141,16 @@ export default function AnnotationPage() {
         newSet.add(imageId);
       }
       return newSet;
+    });
+
+    setSelectedOutlierImages((prev) => {
+      const newMap = new Map(prev);
+      if (newMap.has(imageId)) {
+        newMap.delete(imageId);
+      } else {
+        newMap.set(imageId, image); // Store full Image object
+      }
+      return newMap;
     });
   };
 
@@ -142,7 +163,7 @@ export default function AnnotationPage() {
       return;
     }
 
-    // Path B: Has outliers → mark outliers first, then load all outlier images
+    // Path B: Has outliers → mark outliers, then use stored Image objects
     setSubmitting(true);
     setError(null);
     try {
@@ -151,13 +172,12 @@ export default function AnnotationPage() {
         outlier_image_ids: Array.from(selectedOutlierIds),
       });
 
-      // Fix 1 (CRITICAL): Load all outlier images before transitioning
-      await loadAllOutlierImages(clusterId);
-
+      // Fix 1 (CRITICAL): No need to fetch - we already have Image objects in selectedOutlierImages
       setStep("annotate-outliers");
-    } catch (err: any) {
-      // Phase 3 lesson: Backend returns detailed error messages
-      setError(err.response?.data?.detail || "Failed to mark outliers");
+    } catch (err: unknown) {
+      // Fix 5 (MEDIUM): Type-safe error handling
+      const detail = (err as any)?.response?.data?.detail;
+      setError(detail || "Failed to mark outliers");
     } finally {
       setSubmitting(false);
     }
@@ -181,8 +201,10 @@ export default function AnnotationPage() {
       });
       setStep("done");
       // Fix 4: Navigation now handled by useEffect
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to save batch annotation");
+    } catch (err: unknown) {
+      // Fix 5 (MEDIUM): Type-safe error handling
+      const detail = (err as any)?.response?.data?.detail;
+      setError(detail || "Failed to save batch annotation");
     } finally {
       setSubmitting(false);
     }
@@ -220,10 +242,10 @@ export default function AnnotationPage() {
       }));
       await clusterApi.annotateOutliers(annotations);
       setStep("label-remaining");
-    } catch (err: any) {
-      setError(
-        err.response?.data?.detail || "Failed to save outlier annotations",
-      );
+    } catch (err: unknown) {
+      // Fix 5 (MEDIUM): Type-safe error handling
+      const detail = (err as any)?.response?.data?.detail;
+      setError(detail || "Failed to save outlier annotations");
     } finally {
       setSubmitting(false);
     }
@@ -245,6 +267,9 @@ export default function AnnotationPage() {
   if (!cluster) {
     return <div className="error">Cluster not found</div>;
   }
+
+  // Fix 1 (CRITICAL): Convert Map to Array for rendering
+  const outlierImagesArray = Array.from(selectedOutlierImages.values());
 
   return (
     <div>
@@ -306,7 +331,7 @@ export default function AnnotationPage() {
                 <div
                   key={image.id}
                   className="image-item"
-                  onClick={() => toggleOutlier(image.id)}
+                  onClick={() => toggleOutlier(image)}
                   style={{
                     cursor: "pointer",
                     border: isSelected ? "3px solid red" : "1px solid #ddd",
@@ -411,16 +436,17 @@ export default function AnnotationPage() {
       )}
 
       {/* Step 2 (Path B): Annotate outliers */}
-      {/* Fix 1 (CRITICAL): Use outlierImages instead of paginatedData.images.filter() */}
+      {/* Fix 1 (CRITICAL): Use selectedOutlierImages instead of paginatedData filter */}
       {step === "annotate-outliers" && (
         <div className="card">
           <h3>Step 2: Annotate Outliers</h3>
           <p>
-            Assign names to each outlier image ({outlierImages.length} images):
+            Assign names to each outlier image ({outlierImagesArray.length}{" "}
+            images):
           </p>
 
           <div>
-            {outlierImages.map((image) => (
+            {outlierImagesArray.map((image) => (
               <div
                 key={image.id}
                 style={{
@@ -470,14 +496,15 @@ export default function AnnotationPage() {
 
           <div style={{ marginTop: "20px" }}>
             <p>
-              Annotated {outlierAnnotations.size} of {outlierImages.length}{" "}
+              Annotated {outlierAnnotations.size} of {outlierImagesArray.length}{" "}
               outliers
             </p>
             <button
               className="button"
               onClick={handleOutliersSubmit}
               disabled={
-                outlierAnnotations.size !== outlierImages.length || submitting
+                outlierAnnotations.size !== outlierImagesArray.length ||
+                submitting
               }
             >
               {submitting ? "Saving..." : "Continue to Label Remaining"}
