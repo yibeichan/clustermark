@@ -64,13 +64,43 @@ export default function AnnotationPage() {
   }, [clusterId]);
 
   // Load paginated images when page or pageSize changes
+  // Fix: Prevent race condition with cleanup function
   useEffect(() => {
     if (clusterId && step === "review") {
-      loadPaginatedImages(clusterId, currentPage, pageSize);
+      let isCancelled = false;
+
+      const loadImages = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const response = await clusterApi.getImagesPaginated(
+            clusterId,
+            currentPage,
+            pageSize,
+          );
+          if (!isCancelled) {
+            setPaginatedData(response.data);
+          }
+        } catch (err) {
+          if (!isCancelled) {
+            setError("Failed to load images");
+          }
+        } finally {
+          if (!isCancelled) {
+            setLoading(false);
+          }
+        }
+      };
+
+      loadImages();
+
+      return () => {
+        isCancelled = true;
+      };
     }
   }, [clusterId, currentPage, pageSize, step]);
 
-  // Fix 4 (MEDIUM): Safe navigation with cleanup and null guard
+  // Safe navigation with cleanup and null guard
   useEffect(() => {
     if (step === "done") {
       const timer = setTimeout(() => {
@@ -91,23 +121,6 @@ export default function AnnotationPage() {
       setCluster(response.data);
     } catch (err) {
       setError("Failed to load cluster metadata");
-    }
-  };
-
-  const loadPaginatedImages = async (
-    id: string,
-    page: number,
-    size: number,
-  ) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await clusterApi.getImagesPaginated(id, page, size);
-      setPaginatedData(response.data);
-    } catch (err) {
-      setError("Failed to load images");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -309,15 +322,19 @@ export default function AnnotationPage() {
             {paginatedData.images.map((image: Image) => {
               const isSelected = selectedOutlierIds.has(image.id);
               return (
-                <div
+                <button
                   key={image.id}
+                  type="button"
                   className="image-item"
-                  onClick={() => !submitting && toggleOutlier(image)}
+                  onClick={() => toggleOutlier(image)}
+                  disabled={submitting}
                   style={{
-                    cursor: submitting ? "not-allowed" : "pointer",
                     border: isSelected ? "3px solid red" : "1px solid #ddd",
                     padding: "5px",
-                    opacity: submitting ? 0.6 : 1,
+                    background: "transparent",
+                    textAlign: "left",
+                    width: "100%",
+                    cursor: submitting ? "not-allowed" : "pointer",
                   }}
                 >
                   <img
@@ -339,7 +356,7 @@ export default function AnnotationPage() {
                       Outlier
                     </div>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
