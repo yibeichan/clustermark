@@ -9,6 +9,7 @@ import {
   OutlierAnnotation,
 } from "../types";
 import LabelDropdown from "../components/LabelDropdown";
+import "../styles/AnnotationPage.css";
 
 // Fallback image for broken/missing images (DRY principle)
 const FALLBACK_IMAGE_SRC =
@@ -295,10 +296,7 @@ export default function AnnotationPage() {
       </div>
 
       {error && (
-        <div
-          className="card"
-          style={{ backgroundColor: "#fee", border: "1px solid #fcc" }}
-        >
+        <div className="card annotation-error">
           <strong>Error:</strong> {error}
         </div>
       )}
@@ -318,7 +316,7 @@ export default function AnnotationPage() {
           </p>
 
           {/* Page size selector */}
-          <div style={{ marginBottom: "15px" }}>
+          <div className="page-size-selector">
             <label>
               Images per page:{" "}
               <select
@@ -341,17 +339,9 @@ export default function AnnotationPage() {
                 <button
                   key={image.id}
                   type="button"
-                  className="image-item"
+                  className={`image-item ${isSelected ? "selected" : ""}`}
                   onClick={() => toggleOutlier(image)}
                   disabled={submitting}
-                  style={{
-                    border: isSelected ? "3px solid red" : "1px solid #ddd",
-                    padding: "5px",
-                    background: "transparent",
-                    textAlign: "left",
-                    width: "100%",
-                    cursor: submitting ? "not-allowed" : "pointer",
-                  }}
                 >
                   <img
                     src={`/uploads/${image.file_path}`}
@@ -361,15 +351,7 @@ export default function AnnotationPage() {
                     }}
                   />
                   {isSelected && (
-                    <div
-                      style={{
-                        color: "red",
-                        fontWeight: "bold",
-                        marginTop: "5px",
-                      }}
-                    >
-                      Outlier
-                    </div>
+                    <div className="image-item-outlier-label">Outlier</div>
                   )}
                 </button>
               );
@@ -377,14 +359,7 @@ export default function AnnotationPage() {
           </div>
 
           {/* Pagination controls */}
-          <div
-            style={{
-              marginTop: "20px",
-              display: "flex",
-              gap: "10px",
-              alignItems: "center",
-            }}
-          >
+          <div className="pagination-controls">
             <button
               className="button"
               onClick={() => handlePageChange(currentPage - 1)}
@@ -406,17 +381,16 @@ export default function AnnotationPage() {
           </div>
 
           {/* Continue button */}
-          <div style={{ marginTop: "20px" }}>
+          <div className="continue-section">
             <p>
               {selectedOutlierImages.size === 0
                 ? "No outliers selected. Will batch label all images."
                 : `${selectedOutlierImages.size} outlier(s) selected. Will annotate them individually.`}
             </p>
             <button
-              className="button"
+              className="button continue-button"
               onClick={handleContinue}
               disabled={submitting}
-              style={{ fontSize: "18px", padding: "12px 24px" }}
             >
               {submitting ? "Processing..." : "Continue"}
             </button>
@@ -432,7 +406,7 @@ export default function AnnotationPage() {
             Assign a name to all {paginatedData?.total_count} images in this
             cluster:
           </p>
-          <div style={{ marginTop: "15px", marginBottom: "15px" }}>
+          <div className="batch-label-section">
             <LabelDropdown
               value={batchLabel}
               onChange={handleBatchLabelChange}
@@ -461,40 +435,17 @@ export default function AnnotationPage() {
 
           <div>
             {outlierImagesArray.map((image) => (
-              <div
-                key={image.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "15px",
-                  marginBottom: "15px",
-                  padding: "10px",
-                  border: "1px solid #ddd",
-                  borderRadius: "4px",
-                }}
-              >
+              <div key={image.id} className="outlier-item">
                 <img
                   src={`/uploads/${image.file_path}`}
                   alt={image.filename}
-                  style={{
-                    width: "100px",
-                    height: "100px",
-                    objectFit: "cover",
-                  }}
+                  className="outlier-item-image"
                   onError={(e) => {
                     e.currentTarget.src = FALLBACK_IMAGE_SRC;
                   }}
                 />
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      marginBottom: "5px",
-                      fontSize: "12px",
-                      color: "#666",
-                    }}
-                  >
-                    {image.filename}
-                  </div>
+                <div className="outlier-item-content">
+                  <div className="outlier-item-filename">{image.filename}</div>
                   <LabelDropdown
                     value={outlierAnnotations.get(image.id)?.label || ""}
                     onChange={(label, isCustom) =>
@@ -507,7 +458,7 @@ export default function AnnotationPage() {
             ))}
           </div>
 
-          <div style={{ marginTop: "20px" }}>
+          <div className="outlier-progress">
             <p>
               Annotated {outlierAnnotations.size} of {outlierImagesArray.length}{" "}
               outliers
@@ -537,7 +488,7 @@ export default function AnnotationPage() {
               : 0}{" "}
             images:
           </p>
-          <div style={{ marginTop: "15px", marginBottom: "15px" }}>
+          <div className="batch-label-section">
             <LabelDropdown
               value={batchLabel}
               onChange={handleBatchLabelChange}
