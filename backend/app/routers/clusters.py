@@ -63,7 +63,7 @@ async def get_cluster_images_paginated(
     return service.get_cluster_images_paginated(cluster_id, page, page_size)
 
 
-@router.get("/{cluster_id}/outliers")
+@router.get("/{cluster_id}/outliers", response_model=schemas.OutlierImagesResponse)
 async def get_cluster_outliers(
     cluster_id: str,
     db: Session = Depends(get_db),
@@ -81,24 +81,10 @@ async def get_cluster_outliers(
         db: Database session (injected)
 
     Returns:
-        Dict with cluster_id, outliers list, and count
+        OutlierImagesResponse with cluster_id, outliers list, and count
     """
-    # Verify cluster exists
-    cluster = db.query(models.Cluster).filter(models.Cluster.id == cluster_id).first()
-    if not cluster:
-        raise HTTPException(status_code=404, detail="Cluster not found")
-
-    # Fetch outlier images
-    outliers = (
-        db.query(models.Image)
-        .filter(
-            models.Image.cluster_id == cluster_id,
-            models.Image.annotation_status == "outlier",
-        )
-        .all()
-    )
-
-    return {"cluster_id": cluster_id, "outliers": outliers, "count": len(outliers)}
+    service = ClusterService(db)
+    return service.get_cluster_outliers(cluster_id)
 
 
 @router.post("/{cluster_id}/outliers")

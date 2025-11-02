@@ -813,105 +813,96 @@ class TestGetClusterOutliers:
     """Tests for GET /clusters/{id}/outliers endpoint (Phase 6b)."""
 
     def test_get_outliers_returns_marked_outliers(
-        self, test_db, sample_cluster_with_outliers
+        self, test_db, client, sample_cluster_with_outliers
     ):
-        """Test retrieving outliers returns only images with annotation_status='outlier'."""
-        from app.routers.clusters import get_cluster_outliers
-
+        """Test retrieving outliers via HTTP endpoint returns only images with annotation_status='outlier'."""
         cluster = sample_cluster_with_outliers["cluster"]
         cluster_id = str(cluster.id)
 
-        # Call the endpoint directly
-        result = (
-            test_db.query(models.Cluster)
-            .filter(models.Cluster.id == cluster.id)
-            .first()
-        )
-        assert result is not None
+        # Call the actual HTTP endpoint
+        response = client.get(f"/clusters/{cluster_id}/outliers")
 
-        # Fetch outliers using raw query (simulating endpoint logic)
-        outliers = (
-            test_db.query(models.Image)
-            .filter(
-                models.Image.cluster_id == cluster.id,
-                models.Image.annotation_status == "outlier",
-            )
-            .all()
-        )
-
-        assert len(outliers) == 3
-        assert all(img.annotation_status == "outlier" for img in outliers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["cluster_id"] == cluster_id
+        assert data["count"] == 3
+        assert len(data["outliers"]) == 3
+        assert all(img["annotation_status"] == "outlier" for img in data["outliers"])
 
     def test_get_outliers_empty_when_no_outliers(
-        self, test_db, sample_episode_with_images
+        self, test_db, client, sample_episode_with_images
     ):
         """Test retrieving outliers from cluster without outliers returns empty list."""
         cluster = sample_episode_with_images["cluster"]
+        cluster_id = str(cluster.id)
 
-        outliers = (
-            test_db.query(models.Image)
-            .filter(
-                models.Image.cluster_id == cluster.id,
-                models.Image.annotation_status == "outlier",
-            )
-            .all()
-        )
+        # Call the actual HTTP endpoint
+        response = client.get(f"/clusters/{cluster_id}/outliers")
 
-        assert len(outliers) == 0
+        assert response.status_code == 200
+        data = response.json()
+        assert data["cluster_id"] == cluster_id
+        assert data["count"] == 0
+        assert len(data["outliers"]) == 0
 
-    def test_get_outliers_after_marking(self, test_db, sample_episode_with_images):
+    def test_get_outliers_after_marking(
+        self, test_db, client, sample_episode_with_images
+    ):
         """Test GET outliers after POST outliers (resume workflow simulation)."""
-        service = ClusterService(test_db)
         cluster = sample_episode_with_images["cluster"]
         cluster_id = str(cluster.id)
 
-        # Step 1: Mark some images as outliers
+        # Step 1: Mark some images as outliers via service
         images = (
             test_db.query(models.Image)
             .filter(models.Image.cluster_id == cluster.id)
             .limit(5)
             .all()
         )
-        outlier_ids = [img.id for img in images]
+        outlier_ids = [str(img.id) for img in images]
 
+        service = ClusterService(test_db)
         outlier_request = schemas.OutlierSelectionRequest(
-            cluster_id=cluster.id, outlier_image_ids=outlier_ids
+            cluster_id=cluster.id, outlier_image_ids=[img.id for img in images]
         )
         service.mark_outliers(outlier_request)
 
-        # Step 2: Fetch outliers (simulating page refresh / resume)
-        outliers = (
-            test_db.query(models.Image)
-            .filter(
-                models.Image.cluster_id == cluster.id,
-                models.Image.annotation_status == "outlier",
-            )
-            .all()
-        )
+        # Step 2: Fetch outliers via HTTP endpoint (simulating page refresh)
+        response = client.get(f"/clusters/{cluster_id}/outliers")
 
-        assert len(outliers) == 5
-        outlier_ids_fetched = [img.id for img in outliers]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 5
+        outlier_ids_fetched = [img["id"] for img in data["outliers"]]
         assert set(outlier_ids_fetched) == set(outlier_ids)
 
     def test_get_outliers_returns_correct_fields(
-        self, test_db, sample_cluster_with_outliers
+        self, test_db, client, sample_cluster_with_outliers
     ):
-        """Test outliers have all necessary Image fields."""
+        """Test outliers have all necessary Image fields via HTTP response."""
         cluster = sample_cluster_with_outliers["cluster"]
+        cluster_id = str(cluster.id)
 
-        outliers = (
-            test_db.query(models.Image)
-            .filter(
-                models.Image.cluster_id == cluster.id,
-                models.Image.annotation_status == "outlier",
-            )
-            .all()
-        )
+        # Call the actual HTTP endpoint
+        response = client.get(f"/clusters/{cluster_id}/outliers")
 
-        assert len(outliers) > 0
-        for outlier in outliers:
-            assert outlier.id is not None
-            assert outlier.cluster_id == cluster.id
-            assert outlier.file_path is not None
-            assert outlier.filename is not None
-            assert outlier.annotation_status == "outlier"
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["outliers"]) > 0
+
+        for outlier in data["outliers"]:
+            assert "id" in outlier
+            assert "cluster_id" in outlier
+            assert outlier["cluster_id"] == cluster_id
+            assert "file_path" in outlier
+            assert "filename" in outlier
+            assert outlier["annotation_status"] == "outlier"
+
+    def test_get_outliers_404_for_nonexistent_cluster(self, test_db, client):
+        """Test 404 response for non-existent cluster."""
+        fake_cluster_id = "00000000-0000-0000-0000-000000000000"
+
+        response = client.get(f"/clusters/{fake_cluster_id}/outliers")
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()

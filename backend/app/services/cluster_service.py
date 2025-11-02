@@ -356,3 +356,42 @@ class ClusterService:
 
         self.db.commit()
         return {"status": "outliers_annotated", "count": total_updated}
+
+    def get_cluster_outliers(self, cluster_id: str) -> Dict:
+        """
+        Get images marked as outliers for this cluster.
+
+        Enables resume workflow: when user returns to a cluster with pre-existing
+        outliers, this endpoint fetches them so they can be displayed/edited.
+
+        Fixes data loss bug discovered in Phase 5 Round 6 code review.
+
+        Args:
+            cluster_id: UUID of the cluster
+
+        Returns:
+            Dict with cluster_id, outliers list, and count
+
+        Raises:
+            HTTPException: 404 if cluster not found
+        """
+        # Verify cluster exists
+        cluster = (
+            self.db.query(models.Cluster)
+            .filter(models.Cluster.id == cluster_id)
+            .first()
+        )
+        if not cluster:
+            raise HTTPException(status_code=404, detail="Cluster not found")
+
+        # Fetch outlier images
+        outliers = (
+            self.db.query(models.Image)
+            .filter(
+                models.Image.cluster_id == cluster_id,
+                models.Image.annotation_status == "outlier",
+            )
+            .all()
+        )
+
+        return {"cluster_id": cluster_id, "outliers": outliers, "count": len(outliers)}

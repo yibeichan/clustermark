@@ -3,11 +3,14 @@ from typing import List, Optional
 from datetime import datetime
 import uuid
 
+
 class EpisodeBase(BaseModel):
     name: str
 
+
 class EpisodeCreate(EpisodeBase):
     pass
+
 
 class Episode(EpisodeBase):
     id: uuid.UUID
@@ -21,16 +24,20 @@ class Episode(EpisodeBase):
     class Config:
         from_attributes = True
 
+
 class ClusterBase(BaseModel):
     cluster_name: str
     image_paths: List[str]
 
+
 class ClusterCreate(ClusterBase):
     episode_id: uuid.UUID
+
 
 class ClusterAnnotate(BaseModel):
     is_single_person: bool
     person_name: Optional[str] = None
+
 
 class Cluster(ClusterBase):
     id: uuid.UUID
@@ -46,26 +53,32 @@ class Cluster(ClusterBase):
     class Config:
         from_attributes = True
 
+
 class SplitAnnotationBase(BaseModel):
     scene_track_pattern: str
     person_name: str
     image_paths: List[str]
 
+
 class SplitAnnotationCreate(SplitAnnotationBase):
     cluster_id: uuid.UUID
+
 
 class SplitAnnotation(SplitAnnotationBase):
     id: uuid.UUID
     cluster_id: uuid.UUID
-    
+
     class Config:
         from_attributes = True
+
 
 class AnnotatorBase(BaseModel):
     session_token: str
 
+
 class AnnotatorCreate(AnnotatorBase):
     pass
+
 
 class Annotator(AnnotatorBase):
     id: uuid.UUID
@@ -75,15 +88,18 @@ class Annotator(AnnotatorBase):
     class Config:
         from_attributes = True
 
+
 # Image schemas
 class ImageBase(BaseModel):
     file_path: str
     filename: str
 
+
 class ImageCreate(ImageBase):
     cluster_id: uuid.UUID
     episode_id: uuid.UUID
     initial_label: Optional[str] = None
+
 
 class Image(ImageBase):
     id: uuid.UUID
@@ -97,6 +113,7 @@ class Image(ImageBase):
     class Config:
         from_attributes = True
 
+
 # Paginated response schemas (for Phase 3)
 class PaginatedImagesResponse(BaseModel):
     cluster_id: uuid.UUID
@@ -109,16 +126,26 @@ class PaginatedImagesResponse(BaseModel):
     has_next: bool
     has_prev: bool
 
+
 # Outlier and batch annotation schemas (for Phase 3)
 class OutlierSelectionRequest(BaseModel):
     cluster_id: uuid.UUID
     outlier_image_ids: List[uuid.UUID]
 
+
 class ClusterAnnotateBatch(BaseModel):
     person_name: str
     is_custom_label: bool = False
+
 
 class OutlierAnnotation(BaseModel):
     image_id: uuid.UUID
     person_name: str
     is_custom_label: bool = False
+
+
+# Phase 6b: Outlier fetch response schema
+class OutlierImagesResponse(BaseModel):
+    cluster_id: uuid.UUID
+    outliers: List[Image]
+    count: int

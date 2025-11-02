@@ -7,8 +7,10 @@ Provides test database setup and teardown, isolated sessions for each test.
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
-from app.database import Base
+from fastapi.testclient import TestClient
+from app.database import Base, get_db
 from app.models import models
+from app.main import app
 
 # Use in-memory SQLite for fast tests
 TEST_DATABASE_URL = "sqlite:///:memory:"
@@ -28,10 +30,7 @@ def test_db():
     in Python instead.
     """
     # Create engine
-    engine = create_engine(
-        TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False}
-    )
+    engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
 
     # Enable foreign keys in SQLite (disabled by default)
     @event.listens_for(engine, "connect")
@@ -52,7 +51,7 @@ def test_db():
             # Check if this is a UUID column with gen_random_uuid default
             if column.server_default is not None:
                 default_str = str(column.server_default.arg)
-                if 'gen_random_uuid' in default_str:
+                if "gen_random_uuid" in default_str:
                     # Remove server default and add Python-level default
                     column.server_default = None
                     column.default = ColumnDefault(uuid_pkg.uuid4)
@@ -77,13 +76,29 @@ def test_db():
 
 
 @pytest.fixture
+def client(test_db):
+    """
+    Create a TestClient with overridden database dependency.
+
+    Uses the same test_db session as unit tests to ensure data consistency.
+    """
+
+    def override_get_db():
+        try:
+            yield test_db
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
 def sample_episode(test_db):
     """Create a sample Episode for testing."""
-    episode = models.Episode(
-        name="test_episode",
-        total_clusters=2,
-        status="pending"
-    )
+    episode = models.Episode(name="test_episode", total_clusters=2, status="pending")
     test_db.add(episode)
     test_db.commit()
     test_db.refresh(episode)

@@ -1,0 +1,14 @@
+.error-boundary-fallback {
+  text-align: center;
+  padding: 40px;
+}
+
+.error-boundary-message {
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.error-boundary-reload-button {
+  font-size: 16px;
+  padding: 10px 20px;
+}

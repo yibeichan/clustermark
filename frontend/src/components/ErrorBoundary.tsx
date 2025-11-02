@@ -1,4 +1,5 @@
 import { Component, ReactNode } from "react";
+import "./ErrorBoundary.css";
 
 interface Props {
   children: ReactNode;
@@ -47,15 +48,14 @@ export default class ErrorBoundary extends Component<Props, State> {
       // Use custom fallback if provided, otherwise show default
       return (
         this.props.fallback || (
-          <div className="card" style={{ textAlign: "center", padding: "40px" }}>
+          <div className="card error-boundary-fallback">
             <h2>Something went wrong</h2>
-            <p style={{ color: "#666", marginBottom: "20px" }}>
+            <p className="error-boundary-message">
               {this.state.error?.message || "An unexpected error occurred"}
             </p>
             <button
-              className="button"
+              className="button error-boundary-reload-button"
               onClick={() => window.location.reload()}
-              style={{ fontSize: "16px", padding: "10px 20px" }}
             >
               Reload Page
             </button>
