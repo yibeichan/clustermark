@@ -9,6 +9,7 @@ import {
   OutlierAnnotation,
 } from "../types";
 import LabelDropdown from "../components/LabelDropdown";
+import ImageGridSkeleton from "../components/ImageGridSkeleton";
 import "../styles/AnnotationPage.css";
 
 // Fallback image for broken/missing images (DRY principle)
@@ -300,7 +301,12 @@ export default function AnnotationPage() {
   };
 
   if (loading && !paginatedData) {
-    return <div className="loading">Loading cluster...</div>;
+    return (
+      <div className="card">
+        <h2>Loading cluster...</h2>
+        <ImageGridSkeleton count={pageSize} />
+      </div>
+    );
   }
 
   if (!cluster) {
