@@ -84,6 +84,42 @@ export default function AnnotationPage() {
     }
   }, [clusterId]);
 
+  // Phase 6c: Load existing outliers on mount (enables resume workflow)
+  useEffect(() => {
+    if (clusterId) {
+      let isCancelled = false;
+
+      const loadExistingOutliers = async () => {
+        try {
+          const response = await clusterApi.getOutliers(clusterId);
+          if (!isCancelled && response.data.outliers.length > 0) {
+            // Populate selectedOutlierImages with existing outliers
+            const outlierMap = new Map<string, Image>();
+            response.data.outliers.forEach((img) => {
+              outlierMap.set(img.id, img);
+            });
+            setSelectedOutlierImages(outlierMap);
+          }
+        } catch (err) {
+          // Don't show error for missing outliers (expected for new clusters)
+          if (
+            !isCancelled &&
+            axios.isAxiosError(err) &&
+            err.response?.status !== 404
+          ) {
+            console.error("Failed to load existing outliers:", err);
+          }
+        }
+      };
+
+      loadExistingOutliers();
+
+      return () => {
+        isCancelled = true;
+      };
+    }
+  }, [clusterId]);
+
   // Load paginated images when page or pageSize changes
   // Fix: Prevent race condition with cleanup function
   useEffect(() => {
@@ -161,16 +197,8 @@ export default function AnnotationPage() {
   const handleContinue = async () => {
     if (!clusterId) return;
 
-    // P1 FIX: Check for pre-existing outliers from previous session
-    // If cluster has outliers but we haven't loaded them, we can't proceed safely
-    if (cluster?.has_outliers && selectedOutlierImages.size === 0) {
-      setError(
-        "This cluster has pre-existing outliers that need to be annotated. " +
-          "Please refresh the page or contact support. " +
-          "(Backend API limitation: cannot fetch existing outliers)",
-      );
-      return;
-    }
+    // Phase 6c: Pre-existing outliers are now loaded automatically on mount
+    // No need to check - if cluster.has_outliers is true, they're in selectedOutlierImages
 
     // Path A: No outliers selected → batch label
     if (selectedOutlierImages.size === 0) {

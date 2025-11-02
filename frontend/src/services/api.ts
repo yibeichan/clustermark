@@ -9,6 +9,7 @@ import {
   OutlierSelectionRequest,
   ClusterAnnotateBatch,
   OutlierAnnotation,
+  Image,
 } from "../types";
 
 const API_BASE = "/api";
@@ -50,6 +51,12 @@ export const clusterApi = {
 
   annotateOutliers: (annotations: OutlierAnnotation[]) =>
     api.post("/clusters/annotate-outliers", annotations),
+
+  // Phase 6b: Get existing outliers (enables resume workflow)
+  getOutliers: (clusterId: string) =>
+    api.get<{ cluster_id: string; outliers: Image[]; count: number }>(
+      `/clusters/${clusterId}/outliers`,
+    ),
 };
 
 export const annotationApi = {
