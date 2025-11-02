@@ -357,7 +357,7 @@ class ClusterService:
         self.db.commit()
         return {"status": "outliers_annotated", "count": total_updated}
 
-    def get_cluster_outliers(self, cluster_id: str) -> Dict:
+    def get_cluster_outliers(self, cluster_id: str) -> schemas.OutlierImagesResponse:
         """
         Get images marked as outliers for this cluster.
 
@@ -370,7 +370,7 @@ class ClusterService:
             cluster_id: UUID of the cluster
 
         Returns:
-            Dict with cluster_id, outliers list, and count
+            OutlierImagesResponse schema object with cluster_id, outliers list, and count
 
         Raises:
             HTTPException: 404 if cluster not found
@@ -394,4 +394,6 @@ class ClusterService:
             .all()
         )
 
-        return {"cluster_id": cluster_id, "outliers": outliers, "count": len(outliers)}
+        return schemas.OutlierImagesResponse(
+            cluster_id=cluster_id, outliers=outliers, count=len(outliers)
+        )

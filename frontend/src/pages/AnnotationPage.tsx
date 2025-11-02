@@ -32,6 +32,9 @@ export default function AnnotationPage() {
     useState<PaginatedImagesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [outliersLoadError, setOutliersLoadError] = useState<string | null>(
+    null,
+  );
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -93,11 +96,25 @@ export default function AnnotationPage() {
           const response = await clusterApi.getOutliers(clusterId);
           if (!isCancelled && response.data.outliers.length > 0) {
             // Populate selectedOutlierImages with existing outliers
-            const outlierMap = new Map<string, Image>();
+            // Use functional update to prevent race condition with user selections
+            const backendOutliers = new Map<string, Image>();
             response.data.outliers.forEach((img) => {
-              outlierMap.set(img.id, img);
+              backendOutliers.set(img.id, img);
             });
-            setSelectedOutlierImages(outlierMap);
+            setSelectedOutlierImages((prev) => {
+              // Merge: preserve user selections, add backend outliers
+              const merged = new Map(prev);
+              backendOutliers.forEach((img, id) => {
+                if (!merged.has(id)) {
+                  merged.set(id, img);
+                }
+              });
+              return merged;
+            });
+          }
+          // Clear any previous errors on successful load
+          if (!isCancelled) {
+            setOutliersLoadError(null);
           }
         } catch (err) {
           // Don't show error for missing outliers (expected for new clusters)
@@ -106,6 +123,9 @@ export default function AnnotationPage() {
             axios.isAxiosError(err) &&
             err.response?.status !== 404
           ) {
+            setOutliersLoadError(
+              "Failed to load existing outliers. Cannot continue safely.",
+            );
             console.error("Failed to load existing outliers:", err);
           }
         }
@@ -333,6 +353,20 @@ export default function AnnotationPage() {
         </div>
       )}
 
+      {/* Phase 6 Round 2: Show error banner if outliers failed to load (P1 fix) */}
+      {outliersLoadError && (
+        <div className="card annotation-error">
+          <strong>Error:</strong> {outliersLoadError}
+          <button
+            className="button"
+            onClick={() => window.location.reload()}
+            style={{ marginLeft: "10px" }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Step 1: Review and select outliers */}
       {step === "review" && paginatedData && (
         <ReviewStep
@@ -347,7 +381,7 @@ export default function AnnotationPage() {
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
           onContinue={handleContinue}
-          disabled={submitting}
+          disabled={submitting || outliersLoadError !== null}
         />
       )}
 
