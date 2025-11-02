@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios";
 import { clusterApi } from "../services/api";
 import {
   Cluster,
@@ -8,6 +9,10 @@ import {
   OutlierAnnotation,
 } from "../types";
 import LabelDropdown from "../components/LabelDropdown";
+
+// Fallback image for broken/missing images (DRY principle)
+const FALLBACK_IMAGE_SRC =
+  "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4=";
 
 // Phase 5: Type-safe workflow steps
 type WorkflowStep =
@@ -169,9 +174,12 @@ export default function AnnotationPage() {
       // Fix 1 (CRITICAL): No need to fetch - we already have Image objects in selectedOutlierImages
       setStep("annotate-outliers");
     } catch (err: unknown) {
-      // Type-safe error handling with nullish coalescing
-      const detail = (err as any)?.response?.data?.detail;
-      setError(detail ?? "Failed to mark outliers");
+      // Type-safe error handling with axios type guard
+      if (axios.isAxiosError(err) && err.response?.data?.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Failed to mark outliers");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -196,9 +204,12 @@ export default function AnnotationPage() {
       setStep("done");
       // Fix 4: Navigation now handled by useEffect
     } catch (err: unknown) {
-      // Type-safe error handling with nullish coalescing
-      const detail = (err as any)?.response?.data?.detail;
-      setError(detail ?? "Failed to save batch annotation");
+      // Type-safe error handling with axios type guard
+      if (axios.isAxiosError(err) && err.response?.data?.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Failed to save batch annotation");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -237,9 +248,12 @@ export default function AnnotationPage() {
       await clusterApi.annotateOutliers(annotations);
       setStep("label-remaining");
     } catch (err: unknown) {
-      // Type-safe error handling with nullish coalescing
-      const detail = (err as any)?.response?.data?.detail;
-      setError(detail ?? "Failed to save outlier annotations");
+      // Type-safe error handling with axios type guard
+      if (axios.isAxiosError(err) && err.response?.data?.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Failed to save outlier annotations");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -259,7 +273,7 @@ export default function AnnotationPage() {
   }
 
   if (!cluster) {
-    return <div className="error">Cluster not found</div>;
+    return <div className="error">{error || "Cluster not found"}</div>;
   }
 
   // Fix 1 (CRITICAL): Convert Map to Array for rendering
@@ -341,8 +355,7 @@ export default function AnnotationPage() {
                     src={`/uploads/${image.file_path}`}
                     alt={image.filename}
                     onError={(e) => {
-                      e.currentTarget.src =
-                        "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4=";
+                      e.currentTarget.src = FALLBACK_IMAGE_SRC;
                     }}
                   />
                   {isSelected && (
@@ -467,8 +480,7 @@ export default function AnnotationPage() {
                     objectFit: "cover",
                   }}
                   onError={(e) => {
-                    e.currentTarget.src =
-                      "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4=";
+                    e.currentTarget.src = FALLBACK_IMAGE_SRC;
                   }}
                 />
                 <div style={{ flex: 1 }}>
