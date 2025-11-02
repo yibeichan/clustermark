@@ -8,13 +8,11 @@ import {
   Image,
   OutlierAnnotation,
 } from "../types";
-import LabelDropdown from "../components/LabelDropdown";
 import ImageGridSkeleton from "../components/ImageGridSkeleton";
+import ReviewStep from "../components/annotation/ReviewStep";
+import BatchLabelStep from "../components/annotation/BatchLabelStep";
+import OutlierAnnotationStep from "../components/annotation/OutlierAnnotationStep";
 import "../styles/AnnotationPage.css";
-
-// Fallback image for broken/missing images (DRY principle)
-const FALLBACK_IMAGE_SRC =
-  "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4=";
 
 // Phase 5: Type-safe workflow steps
 type WorkflowStep =
@@ -337,206 +335,61 @@ export default function AnnotationPage() {
 
       {/* Step 1: Review and select outliers */}
       {step === "review" && paginatedData && (
-        <div className="card">
-          <h3>Step 1: Review Images</h3>
-          <p>
-            Click images that don't belong (outliers). When done, click
-            Continue.
-          </p>
-          <p>
-            Showing page {paginatedData.page} of{" "}
-            {Math.ceil(paginatedData.total_count / pageSize)} (
-            {paginatedData.total_count} total images)
-          </p>
-
-          {/* Page size selector */}
-          <div className="page-size-selector">
-            <label>
-              Images per page:{" "}
-              <select
-                value={pageSize}
-                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                disabled={submitting}
-              >
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
-            </label>
-          </div>
-
-          {/* Image grid */}
-          <div className="image-grid">
-            {paginatedData.images.map((image: Image) => {
-              const isSelected = selectedOutlierImages.has(image.id);
-              return (
-                <button
-                  key={image.id}
-                  type="button"
-                  className={`image-item ${isSelected ? "selected" : ""}`}
-                  onClick={() => toggleOutlier(image)}
-                  disabled={submitting}
-                >
-                  <img
-                    src={`/uploads/${image.file_path}`}
-                    alt={image.filename}
-                    onError={(e) => {
-                      e.currentTarget.src = FALLBACK_IMAGE_SRC;
-                    }}
-                  />
-                  {isSelected && (
-                    <div className="image-item-outlier-label">Outlier</div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Pagination controls */}
-          <div className="pagination-controls">
-            <button
-              className="button"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={!paginatedData.has_prev || submitting}
-            >
-              &larr; Previous
-            </button>
-            <span>
-              Page {paginatedData.page} of{" "}
-              {Math.ceil(paginatedData.total_count / pageSize)}
-            </span>
-            <button
-              className="button"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={!paginatedData.has_next || submitting}
-            >
-              Next &rarr;
-            </button>
-          </div>
-
-          {/* Continue button */}
-          <div className="continue-section">
-            <p>
-              {selectedOutlierImages.size === 0
-                ? "No outliers selected. Will batch label all images."
-                : `${selectedOutlierImages.size} outlier(s) selected. Will annotate them individually.`}
-            </p>
-            <button
-              className="button continue-button"
-              onClick={handleContinue}
-              disabled={submitting}
-            >
-              {submitting ? "Processing..." : "Continue"}
-            </button>
-          </div>
-        </div>
+        <ReviewStep
+          images={paginatedData.images}
+          selectedOutliers={selectedOutlierImages}
+          onToggleOutlier={toggleOutlier}
+          currentPage={paginatedData.page}
+          pageSize={pageSize}
+          totalCount={paginatedData.total_count}
+          hasNext={paginatedData.has_next}
+          hasPrev={paginatedData.has_prev}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          onContinue={handleContinue}
+          disabled={submitting}
+        />
       )}
 
       {/* Step 2 (Path A): Batch label all images */}
       {step === "batch-label" && (
-        <div className="card">
-          <h3>Step 2: Label All Images</h3>
-          <p>
-            Assign a name to all {paginatedData?.total_count} images in this
-            cluster:
-          </p>
-          <div className="batch-label-section">
-            <LabelDropdown
-              value={batchLabel}
-              onChange={handleBatchLabelChange}
-              disabled={submitting}
-            />
-          </div>
-          <button
-            className="button"
-            onClick={handleBatchSubmit}
-            disabled={!batchLabel.trim() || submitting}
-          >
-            {submitting ? "Saving..." : "Save Annotation"}
-          </button>
-        </div>
+        <BatchLabelStep
+          title="Step 2: Label All Images"
+          description="Assign a name to all"
+          imageCount={paginatedData?.total_count || 0}
+          label={batchLabel}
+          onLabelChange={handleBatchLabelChange}
+          onSubmit={handleBatchSubmit}
+          disabled={submitting}
+        />
       )}
 
       {/* Step 2 (Path B): Annotate outliers */}
-      {/* Fix 1 (CRITICAL): Use selectedOutlierImages instead of paginatedData filter */}
       {step === "annotate-outliers" && (
-        <div className="card">
-          <h3>Step 2: Annotate Outliers</h3>
-          <p>
-            Assign names to each outlier image ({outlierImagesArray.length}{" "}
-            images):
-          </p>
-
-          <div>
-            {outlierImagesArray.map((image) => (
-              <div key={image.id} className="outlier-item">
-                <img
-                  src={`/uploads/${image.file_path}`}
-                  alt={image.filename}
-                  className="outlier-item-image"
-                  onError={(e) => {
-                    e.currentTarget.src = FALLBACK_IMAGE_SRC;
-                  }}
-                />
-                <div className="outlier-item-content">
-                  <div className="outlier-item-filename">{image.filename}</div>
-                  <LabelDropdown
-                    value={outlierAnnotations.get(image.id)?.label || ""}
-                    onChange={(label, isCustom) =>
-                      handleOutlierLabelChange(image.id, label, isCustom)
-                    }
-                    disabled={submitting}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="outlier-progress">
-            <p>
-              Annotated {outlierAnnotations.size} of {outlierImagesArray.length}{" "}
-              outliers
-            </p>
-            <button
-              className="button"
-              onClick={handleOutliersSubmit}
-              disabled={
-                outlierAnnotations.size !== outlierImagesArray.length ||
-                submitting
-              }
-            >
-              {submitting ? "Saving..." : "Continue to Label Remaining"}
-            </button>
-          </div>
-        </div>
+        <OutlierAnnotationStep
+          outlierImages={outlierImagesArray}
+          annotations={outlierAnnotations}
+          onLabelChange={handleOutlierLabelChange}
+          onSubmit={handleOutliersSubmit}
+          disabled={submitting}
+        />
       )}
 
       {/* Step 3 (Path B): Label remaining images */}
       {step === "label-remaining" && (
-        <div className="card">
-          <h3>Step 3: Label Remaining Images</h3>
-          <p>
-            Assign a name to the remaining{" "}
-            {paginatedData
+        <BatchLabelStep
+          title="Step 3: Label Remaining Images"
+          description="Assign a name to the remaining"
+          imageCount={
+            paginatedData
               ? paginatedData.total_count - selectedOutlierImages.size
-              : 0}{" "}
-            images:
-          </p>
-          <div className="batch-label-section">
-            <LabelDropdown
-              value={batchLabel}
-              onChange={handleBatchLabelChange}
-              disabled={submitting}
-            />
-          </div>
-          <button
-            className="button"
-            onClick={handleBatchSubmit}
-            disabled={!batchLabel.trim() || submitting}
-          >
-            {submitting ? "Saving..." : "Save Annotation"}
-          </button>
-        </div>
+              : 0
+          }
+          label={batchLabel}
+          onLabelChange={handleBatchLabelChange}
+          onSubmit={handleBatchSubmit}
+          disabled={submitting}
+        />
       )}
 
       {/* Step 4: Done */}
