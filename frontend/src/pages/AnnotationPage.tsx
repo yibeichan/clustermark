@@ -222,30 +222,38 @@ export default function AnnotationPage() {
   const handleContinue = async () => {
     if (!clusterId) return;
 
-    // Phase 6c: Pre-existing outliers are now loaded automatically on mount
-    // No need to check - if cluster.has_outliers is true, they're in selectedOutlierImages
+    // Phase 6 Round 6 Fix (Codex P1): Always sync outliers with backend
+    // If cluster had pre-existing outliers and user deselected all of them,
+    // we MUST call markOutliers([]) to reset them to 'pending' in the database.
+    // Otherwise they remain annotation_status='outlier' and never get annotated.
+    const needsOutlierSync =
+      cluster?.has_outliers || selectedOutlierImages.size > 0;
 
-    // Path A: No outliers selected → batch label
-    if (selectedOutlierImages.size === 0) {
+    if (needsOutlierSync) {
+      // Sync outlier state with backend (marks selected, resets deselected)
+      setSubmitting(true);
+      setError(null);
+      try {
+        await clusterApi.markOutliers({
+          cluster_id: clusterId,
+          outlier_image_ids: Array.from(selectedOutlierImages.keys()),
+        });
+
+        // Path A: No outliers after sync → batch label
+        if (selectedOutlierImages.size === 0) {
+          setStep("batch-label");
+        } else {
+          // Path B: Has outliers → annotate them individually
+          setStep("annotate-outliers");
+        }
+      } catch (err: unknown) {
+        handleApiError(err, "Failed to mark outliers");
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      // No outliers selected and cluster never had any → go directly to batch label
       setStep("batch-label");
-      return;
-    }
-
-    // Path B: Has outliers → mark outliers, then use stored Image objects
-    setSubmitting(true);
-    setError(null);
-    try {
-      await clusterApi.markOutliers({
-        cluster_id: clusterId,
-        outlier_image_ids: Array.from(selectedOutlierImages.keys()),
-      });
-
-      // Fix 1 (CRITICAL): No need to fetch - we already have Image objects in selectedOutlierImages
-      setStep("annotate-outliers");
-    } catch (err: unknown) {
-      handleApiError(err, "Failed to mark outliers");
-    } finally {
-      setSubmitting(false);
     }
   };
 
