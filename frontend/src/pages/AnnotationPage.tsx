@@ -35,6 +35,7 @@ export default function AnnotationPage() {
   const [outliersLoadError, setOutliersLoadError] = useState<string | null>(
     null,
   );
+  const [outliersLoading, setOutliersLoading] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -92,6 +93,7 @@ export default function AnnotationPage() {
       let isCancelled = false;
 
       const loadExistingOutliers = async () => {
+        setOutliersLoading(true);
         try {
           const response = await clusterApi.getOutliers(clusterId);
           if (!isCancelled && response.data.outliers.length > 0) {
@@ -127,6 +129,10 @@ export default function AnnotationPage() {
               "Failed to load existing outliers. Cannot continue safely.",
             );
             console.error("Failed to load existing outliers:", err);
+          }
+        } finally {
+          if (!isCancelled) {
+            setOutliersLoading(false);
           }
         }
       };
@@ -358,9 +364,8 @@ export default function AnnotationPage() {
         <div className="card annotation-error">
           <strong>Error:</strong> {outliersLoadError}
           <button
-            className="button"
+            className="button annotation-error-retry-button"
             onClick={() => window.location.reload()}
-            style={{ marginLeft: "10px" }}
           >
             Retry
           </button>
@@ -381,7 +386,7 @@ export default function AnnotationPage() {
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
           onContinue={handleContinue}
-          disabled={submitting || outliersLoadError !== null}
+          disabled={submitting || outliersLoadError !== null || outliersLoading}
         />
       )}
 

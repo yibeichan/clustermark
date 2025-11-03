@@ -373,8 +373,15 @@ class ClusterService:
             OutlierImagesResponse schema object with cluster_id, outliers list, and count
 
         Raises:
-            HTTPException: 404 if cluster not found
+            HTTPException: 404 if cluster not found or invalid UUID format
         """
+        # Validate cluster_id format to prevent 500 errors on invalid UUIDs
+        try:
+            uuid_pkg.UUID(cluster_id)
+        except ValueError:
+            # Raise 404 for invalid UUID format (consistent with non-existent clusters)
+            raise HTTPException(status_code=404, detail="Cluster not found")
+
         # Verify cluster exists
         cluster = (
             self.db.query(models.Cluster)

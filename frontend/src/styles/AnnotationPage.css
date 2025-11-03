@@ -6,6 +6,10 @@
     border: 1px solid #fcc;
 }
 
+.annotation-error-retry-button {
+    margin-left: 10px;
+}
+
 /* Page controls */
 .page-size-selector {
     margin-bottom: 15px;
