@@ -140,9 +140,12 @@ class ClusterService:
 
     def mark_outliers(self, request: schemas.OutlierSelectionRequest) -> Dict:
         """
-        Mark selected images as outliers.
+        Mark selected images as outliers (sync operation).
 
-        Updates Image.annotation_status to 'outlier' and updates Cluster metadata.
+        Updates Image.annotation_status to 'outlier' for selected images.
+        Resets previously-marked outliers that are NOT in the selection back to 'pending'.
+        This enables the resume workflow where users can deselect outliers.
+
         Operation is idempotent - safe to run multiple times.
 
         Args:
@@ -163,14 +166,29 @@ class ClusterService:
         if not cluster:
             raise HTTPException(status_code=404, detail="Cluster not found")
 
-        # Update Image status in bulk (avoid N+1 queries)
-        # Add cluster_id filter to prevent cross-cluster modifications (Gemini CRITICAL)
+        # Phase 6 Round 4 Fix (Codex P1): Reset deselected outliers
+        # Unmark images that were outliers but are NOT in the new selection
+        # This allows users to deselect outliers in the resume workflow
         if request.outlier_image_ids:
+            # Mark selected images as outliers
             self.db.query(models.Image).filter(
                 models.Image.id.in_(request.outlier_image_ids),
                 models.Image.cluster_id
                 == request.cluster_id,  # Security: verify ownership
             ).update({"annotation_status": "outlier"}, synchronize_session=False)
+
+            # Reset images that are marked as outliers but NOT in the new selection
+            self.db.query(models.Image).filter(
+                models.Image.cluster_id == request.cluster_id,
+                models.Image.annotation_status == "outlier",
+                ~models.Image.id.in_(request.outlier_image_ids),  # NOT in selection
+            ).update({"annotation_status": "pending"}, synchronize_session=False)
+        else:
+            # No outliers selected - reset ALL outliers to pending
+            self.db.query(models.Image).filter(
+                models.Image.cluster_id == request.cluster_id,
+                models.Image.annotation_status == "outlier",
+            ).update({"annotation_status": "pending"}, synchronize_session=False)
 
         # Recount total outliers from database (Gemini CRITICAL: ensure accuracy)
         # This makes the operation truly idempotent and handles retries correctly
@@ -402,5 +420,5 @@ class ClusterService:
         )
 
         return schemas.OutlierImagesResponse(
-            cluster_id=cluster_id, outliers=outliers, count=len(outliers)
+            cluster_id=cluster.id, outliers=outliers, count=len(outliers)
         )

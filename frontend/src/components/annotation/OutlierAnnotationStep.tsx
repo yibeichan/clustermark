@@ -37,6 +37,10 @@ export default function OutlierAnnotationStep({
       <div>
         {outlierImages.map((image) => (
           <div key={image.id} className="outlier-item">
+            {/* Phase 6 Round 4: /uploads/ prefix is CORRECT
+                Backend stores: episode/cluster/image.jpg (relative to uploads dir)
+                Frontend needs: /uploads/episode/cluster/image.jpg
+                Gemini HIGH suggestion to use /${image.file_path} was WRONG */}
             <img
               src={`/uploads/${image.file_path}`}
               alt={image.filename}
