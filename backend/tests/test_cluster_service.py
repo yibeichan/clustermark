@@ -168,36 +168,42 @@ class TestGetClusterImagesPaginated:
         assert result["has_next"] is False
         assert result["has_prev"] is True
 
-    def test_pagination_excludes_outliers(self, test_db, sample_cluster_with_outliers):
-        """Test that pagination excludes images marked as outliers."""
+    def test_pagination_includes_outliers(self, test_db, sample_cluster_with_outliers):
+        """Test that pagination includes outliers for resume workflow (Phase 6 Round 5)."""
         service = ClusterService(test_db)
         cluster_id = str(sample_cluster_with_outliers["cluster"].id)
 
         result = service.get_cluster_images_paginated(cluster_id, page=1, page_size=20)
 
-        # Should return 7 images (10 total - 3 outliers)
-        assert len(result["images"]) == 7
-        assert result["total_count"] == 7
+        # Should return all 10 images (7 pending + 3 outliers)
+        # Changed from excluding outliers to including them for deselection workflow
+        assert len(result["images"]) == 10
+        assert result["total_count"] == 10
 
-        # Verify none are outliers
-        for img in result["images"]:
-            assert img.annotation_status != "outlier"
+        # Verify outliers are included
+        outlier_count = sum(
+            1 for img in result["images"] if img.annotation_status == "outlier"
+        )
+        assert outlier_count == 3
 
-    def test_pagination_empty_cluster(self, test_db, sample_episode_with_images):
-        """Test pagination on empty cluster (all marked as outliers)."""
+    def test_pagination_all_annotated_cluster(
+        self, test_db, sample_episode_with_images
+    ):
+        """Test pagination excludes fully annotated images (not pending/outlier)."""
         service = ClusterService(test_db)
         cluster = sample_episode_with_images["cluster"]
 
-        # Mark all images as outliers
+        # Mark all images as annotated (not pending or outlier)
         test_db.query(models.Image).filter(
             models.Image.cluster_id == cluster.id
-        ).update({"annotation_status": "outlier"})
+        ).update({"annotation_status": "annotated"})
         test_db.commit()
 
         result = service.get_cluster_images_paginated(
             str(cluster.id), page=1, page_size=10
         )
 
+        # Should return 0 images since all are fully annotated
         assert len(result["images"]) == 0
         assert result["total_count"] == 0
         assert result["has_next"] is False
@@ -323,6 +329,58 @@ class TestMarkOutliers:
         for img_id in outlier_ids:
             img = test_db.query(models.Image).filter(models.Image.id == img_id).first()
             assert img.annotation_status == "outlier"
+
+    def test_mark_outliers_deselects_previous_outliers(
+        self, test_db, sample_episode_with_images
+    ):
+        """Test that marking a new set of outliers correctly resets the old ones (Phase 6 Round 4)."""
+        service = ClusterService(test_db)
+        cluster = sample_episode_with_images["cluster"]
+
+        # Get 5 images
+        images = (
+            test_db.query(models.Image)
+            .filter(models.Image.cluster_id == cluster.id)
+            .limit(5)
+            .all()
+        )
+        image_ids = [img.id for img in images]
+
+        # Step 1: Mark images 0, 1, 2 as outliers
+        initial_outlier_ids = image_ids[:3]
+        request1 = schemas.OutlierSelectionRequest(
+            cluster_id=cluster.id, outlier_image_ids=initial_outlier_ids
+        )
+        service.mark_outliers(request1)
+
+        # Verify initial state
+        test_db.refresh(cluster)
+        assert cluster.outlier_count == 3
+        outlier_img_2 = test_db.query(models.Image).get(image_ids[2])
+        assert outlier_img_2.annotation_status == "outlier"
+
+        # Step 2: Mark a new set (0, 1, 3), which deselects 2 and adds 3
+        new_outlier_ids = [image_ids[0], image_ids[1], image_ids[3]]
+        request2 = schemas.OutlierSelectionRequest(
+            cluster_id=cluster.id, outlier_image_ids=new_outlier_ids
+        )
+        service.mark_outliers(request2)
+
+        # Verify final state
+        test_db.refresh(cluster)
+        assert cluster.outlier_count == 3
+
+        # Image 2 should be reset to 'pending'
+        test_db.refresh(outlier_img_2)
+        assert outlier_img_2.annotation_status == "pending"
+
+        # Image 3 should now be an 'outlier'
+        outlier_img_3 = test_db.query(models.Image).get(image_ids[3])
+        assert outlier_img_3.annotation_status == "outlier"
+
+        # Images 0 and 1 should remain outliers
+        outlier_img_0 = test_db.query(models.Image).get(image_ids[0])
+        assert outlier_img_0.annotation_status == "outlier"
 
     def test_mark_outliers_empty_list(self, test_db, sample_episode_with_images):
         """Test marking outliers with empty list (edge case)."""

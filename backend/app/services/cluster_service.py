@@ -111,13 +111,14 @@ class ClusterService:
         if not cluster:
             raise HTTPException(status_code=404, detail="Cluster not found")
 
-        # Query pending images only (uses idx_images_cluster_status index)
-        # Gemini HIGH: Only show images that require action, not already annotated
+        # Phase 6 Round 5 Fix (Codex P1): Include both pending AND outlier images
+        # This allows users to deselect pre-existing outliers in the review workflow
+        # Previously only showed "pending", making outliers invisible and immutable
         query = (
             self.db.query(models.Image)
             .filter(
                 models.Image.cluster_id == cluster_id,
-                models.Image.annotation_status == "pending",
+                models.Image.annotation_status.in_(["pending", "outlier"]),
             )
             .order_by(models.Image.id)
         )  # Stable ordering for pagination
