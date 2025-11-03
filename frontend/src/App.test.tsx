@@ -1,13 +1,17 @@
-clustermark / frontend / src / App.test.tsx;
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import App from "./App";
 
 describe("App", () => {
   it("renders the ClusterMark app root", () => {
-    render(<App />);
-    // Check for a known element or text in your App, adjust as needed
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    );
+    // Check for the main heading specifically
     expect(
-      screen.getByText(/ClusterMark|Episode|Upload|Annotate|Friends/i),
+      screen.getByRole("heading", { name: /ClusterMark/i }),
     ).toBeInTheDocument();
   });
 });

@@ -8,6 +8,7 @@ dependencies:
 
   # Core web framework
   - fastapi=0.104.1
+  - starlette>=0.27.0,<0.28.0
   - uvicorn=0.24.0
 
   # Database
@@ -36,6 +37,7 @@ dependencies:
   - pytest=7.4.3
   - pytest-asyncio=0.21.1
   - pytest-cov
+  - httpx>=0.23.0,<0.26.0
 
   # Development tools
   - black
@@ -47,5 +49,5 @@ dependencies:
 
   # Pip dependencies (if conda versions don't match exactly)
   - pip:
-    - python-jose[cryptography]==3.3.0
-    - passlib[bcrypt]==1.7.4
+      - python-jose[cryptography]==3.3.0
+      - passlib[bcrypt]==1.7.4
