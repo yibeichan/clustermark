@@ -8,11 +8,11 @@ import {
   Image,
   OutlierAnnotation,
 } from "../types";
-import LabelDropdown from "../components/LabelDropdown";
-
-// Fallback image for broken/missing images (DRY principle)
-const FALLBACK_IMAGE_SRC =
-  "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4=";
+import ImageGridSkeleton from "../components/ImageGridSkeleton";
+import ReviewStep from "../components/annotation/ReviewStep";
+import BatchLabelStep from "../components/annotation/BatchLabelStep";
+import OutlierAnnotationStep from "../components/annotation/OutlierAnnotationStep";
+import "../styles/AnnotationPage.css";
 
 // Phase 5: Type-safe workflow steps
 type WorkflowStep =
@@ -32,6 +32,10 @@ export default function AnnotationPage() {
     useState<PaginatedImagesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [outliersLoadError, setOutliersLoadError] = useState<string | null>(
+    null,
+  );
+  const [outliersLoading, setOutliersLoading] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -76,6 +80,64 @@ export default function AnnotationPage() {
       };
 
       loadMetadata();
+
+      return () => {
+        isCancelled = true;
+      };
+    }
+  }, [clusterId]);
+
+  // Phase 6c: Load existing outliers on mount (enables resume workflow)
+  useEffect(() => {
+    if (clusterId) {
+      let isCancelled = false;
+
+      const loadExistingOutliers = async () => {
+        setOutliersLoading(true);
+        try {
+          const response = await clusterApi.getOutliers(clusterId);
+          if (!isCancelled && response.data.outliers.length > 0) {
+            // Populate selectedOutlierImages with existing outliers
+            // Use functional update to prevent race condition with user selections
+            const backendOutliers = new Map<string, Image>();
+            response.data.outliers.forEach((img) => {
+              backendOutliers.set(img.id, img);
+            });
+            setSelectedOutlierImages((prev) => {
+              // Merge: preserve user selections, add backend outliers
+              const merged = new Map(prev);
+              backendOutliers.forEach((img, id) => {
+                if (!merged.has(id)) {
+                  merged.set(id, img);
+                }
+              });
+              return merged;
+            });
+          }
+          // Clear any previous errors on successful load
+          if (!isCancelled) {
+            setOutliersLoadError(null);
+          }
+        } catch (err) {
+          // Don't show error for missing outliers (expected for new clusters)
+          if (
+            !isCancelled &&
+            axios.isAxiosError(err) &&
+            err.response?.status !== 404
+          ) {
+            setOutliersLoadError(
+              "Failed to load existing outliers. Cannot continue safely.",
+            );
+            console.error("Failed to load existing outliers:", err);
+          }
+        } finally {
+          if (!isCancelled) {
+            setOutliersLoading(false);
+          }
+        }
+      };
+
+      loadExistingOutliers();
 
       return () => {
         isCancelled = true;
@@ -160,38 +222,38 @@ export default function AnnotationPage() {
   const handleContinue = async () => {
     if (!clusterId) return;
 
-    // P1 FIX: Check for pre-existing outliers from previous session
-    // If cluster has outliers but we haven't loaded them, we can't proceed safely
-    if (cluster?.has_outliers && selectedOutlierImages.size === 0) {
-      setError(
-        "This cluster has pre-existing outliers that need to be annotated. " +
-          "Please refresh the page or contact support. " +
-          "(Backend API limitation: cannot fetch existing outliers)",
-      );
-      return;
-    }
+    // Phase 6 Round 6 Fix (Codex P1): Always sync outliers with backend
+    // If cluster had pre-existing outliers and user deselected all of them,
+    // we MUST call markOutliers([]) to reset them to 'pending' in the database.
+    // Otherwise they remain annotation_status='outlier' and never get annotated.
+    const needsOutlierSync =
+      cluster?.has_outliers || selectedOutlierImages.size > 0;
 
-    // Path A: No outliers selected → batch label
-    if (selectedOutlierImages.size === 0) {
+    if (needsOutlierSync) {
+      // Sync outlier state with backend (marks selected, resets deselected)
+      setSubmitting(true);
+      setError(null);
+      try {
+        await clusterApi.markOutliers({
+          cluster_id: clusterId,
+          outlier_image_ids: Array.from(selectedOutlierImages.keys()),
+        });
+
+        // Path A: No outliers after sync → batch label
+        if (selectedOutlierImages.size === 0) {
+          setStep("batch-label");
+        } else {
+          // Path B: Has outliers → annotate them individually
+          setStep("annotate-outliers");
+        }
+      } catch (err: unknown) {
+        handleApiError(err, "Failed to mark outliers");
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      // No outliers selected and cluster never had any → go directly to batch label
       setStep("batch-label");
-      return;
-    }
-
-    // Path B: Has outliers → mark outliers, then use stored Image objects
-    setSubmitting(true);
-    setError(null);
-    try {
-      await clusterApi.markOutliers({
-        cluster_id: clusterId,
-        outlier_image_ids: Array.from(selectedOutlierImages.keys()),
-      });
-
-      // Fix 1 (CRITICAL): No need to fetch - we already have Image objects in selectedOutlierImages
-      setStep("annotate-outliers");
-    } catch (err: unknown) {
-      handleApiError(err, "Failed to mark outliers");
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -271,7 +333,12 @@ export default function AnnotationPage() {
   };
 
   if (loading && !paginatedData) {
-    return <div className="loading">Loading cluster...</div>;
+    return (
+      <div className="card">
+        <h2>Loading cluster...</h2>
+        <ImageGridSkeleton count={pageSize} />
+      </div>
+    );
   }
 
   if (!cluster) {
@@ -295,263 +362,81 @@ export default function AnnotationPage() {
       </div>
 
       {error && (
-        <div
-          className="card"
-          style={{ backgroundColor: "#fee", border: "1px solid #fcc" }}
-        >
+        <div className="card annotation-error">
           <strong>Error:</strong> {error}
+        </div>
+      )}
+
+      {/* Phase 6 Round 2: Show error banner if outliers failed to load (P1 fix) */}
+      {outliersLoadError && (
+        <div className="card annotation-error">
+          <strong>Error:</strong> {outliersLoadError}
+          <button
+            className="button annotation-error-retry-button"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
         </div>
       )}
 
       {/* Step 1: Review and select outliers */}
       {step === "review" && paginatedData && (
-        <div className="card">
-          <h3>Step 1: Review Images</h3>
-          <p>
-            Click images that don't belong (outliers). When done, click
-            Continue.
-          </p>
-          <p>
-            Showing page {paginatedData.page} of{" "}
-            {Math.ceil(paginatedData.total_count / pageSize)} (
-            {paginatedData.total_count} total images)
-          </p>
-
-          {/* Page size selector */}
-          <div style={{ marginBottom: "15px" }}>
-            <label>
-              Images per page:{" "}
-              <select
-                value={pageSize}
-                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                disabled={submitting}
-              >
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
-            </label>
-          </div>
-
-          {/* Image grid */}
-          <div className="image-grid">
-            {paginatedData.images.map((image: Image) => {
-              const isSelected = selectedOutlierImages.has(image.id);
-              return (
-                <button
-                  key={image.id}
-                  type="button"
-                  className="image-item"
-                  onClick={() => toggleOutlier(image)}
-                  disabled={submitting}
-                  style={{
-                    border: isSelected ? "3px solid red" : "1px solid #ddd",
-                    padding: "5px",
-                    background: "transparent",
-                    textAlign: "left",
-                    width: "100%",
-                    cursor: submitting ? "not-allowed" : "pointer",
-                  }}
-                >
-                  <img
-                    src={`/uploads/${image.file_path}`}
-                    alt={image.filename}
-                    onError={(e) => {
-                      e.currentTarget.src = FALLBACK_IMAGE_SRC;
-                    }}
-                  />
-                  {isSelected && (
-                    <div
-                      style={{
-                        color: "red",
-                        fontWeight: "bold",
-                        marginTop: "5px",
-                      }}
-                    >
-                      Outlier
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Pagination controls */}
-          <div
-            style={{
-              marginTop: "20px",
-              display: "flex",
-              gap: "10px",
-              alignItems: "center",
-            }}
-          >
-            <button
-              className="button"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={!paginatedData.has_prev || submitting}
-            >
-              &larr; Previous
-            </button>
-            <span>
-              Page {paginatedData.page} of{" "}
-              {Math.ceil(paginatedData.total_count / pageSize)}
-            </span>
-            <button
-              className="button"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={!paginatedData.has_next || submitting}
-            >
-              Next &rarr;
-            </button>
-          </div>
-
-          {/* Continue button */}
-          <div style={{ marginTop: "20px" }}>
-            <p>
-              {selectedOutlierImages.size === 0
-                ? "No outliers selected. Will batch label all images."
-                : `${selectedOutlierImages.size} outlier(s) selected. Will annotate them individually.`}
-            </p>
-            <button
-              className="button"
-              onClick={handleContinue}
-              disabled={submitting}
-              style={{ fontSize: "18px", padding: "12px 24px" }}
-            >
-              {submitting ? "Processing..." : "Continue"}
-            </button>
-          </div>
-        </div>
+        <ReviewStep
+          images={paginatedData.images}
+          selectedOutliers={selectedOutlierImages}
+          onToggleOutlier={toggleOutlier}
+          currentPage={paginatedData.page}
+          pageSize={pageSize}
+          totalCount={paginatedData.total_count}
+          hasNext={paginatedData.has_next}
+          hasPrev={paginatedData.has_prev}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          onContinue={handleContinue}
+          disabled={submitting || outliersLoadError !== null || outliersLoading}
+        />
       )}
 
       {/* Step 2 (Path A): Batch label all images */}
       {step === "batch-label" && (
-        <div className="card">
-          <h3>Step 2: Label All Images</h3>
-          <p>
-            Assign a name to all {paginatedData?.total_count} images in this
-            cluster:
-          </p>
-          <div style={{ marginTop: "15px", marginBottom: "15px" }}>
-            <LabelDropdown
-              value={batchLabel}
-              onChange={handleBatchLabelChange}
-              disabled={submitting}
-            />
-          </div>
-          <button
-            className="button"
-            onClick={handleBatchSubmit}
-            disabled={!batchLabel.trim() || submitting}
-          >
-            {submitting ? "Saving..." : "Save Annotation"}
-          </button>
-        </div>
+        <BatchLabelStep
+          title="Step 2: Label All Images"
+          description="Assign a name to all"
+          imageCount={paginatedData?.total_count || 0}
+          label={batchLabel}
+          onLabelChange={handleBatchLabelChange}
+          onSubmit={handleBatchSubmit}
+          disabled={submitting}
+        />
       )}
 
       {/* Step 2 (Path B): Annotate outliers */}
-      {/* Fix 1 (CRITICAL): Use selectedOutlierImages instead of paginatedData filter */}
       {step === "annotate-outliers" && (
-        <div className="card">
-          <h3>Step 2: Annotate Outliers</h3>
-          <p>
-            Assign names to each outlier image ({outlierImagesArray.length}{" "}
-            images):
-          </p>
-
-          <div>
-            {outlierImagesArray.map((image) => (
-              <div
-                key={image.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "15px",
-                  marginBottom: "15px",
-                  padding: "10px",
-                  border: "1px solid #ddd",
-                  borderRadius: "4px",
-                }}
-              >
-                <img
-                  src={`/uploads/${image.file_path}`}
-                  alt={image.filename}
-                  style={{
-                    width: "100px",
-                    height: "100px",
-                    objectFit: "cover",
-                  }}
-                  onError={(e) => {
-                    e.currentTarget.src = FALLBACK_IMAGE_SRC;
-                  }}
-                />
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      marginBottom: "5px",
-                      fontSize: "12px",
-                      color: "#666",
-                    }}
-                  >
-                    {image.filename}
-                  </div>
-                  <LabelDropdown
-                    value={outlierAnnotations.get(image.id)?.label || ""}
-                    onChange={(label, isCustom) =>
-                      handleOutlierLabelChange(image.id, label, isCustom)
-                    }
-                    disabled={submitting}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ marginTop: "20px" }}>
-            <p>
-              Annotated {outlierAnnotations.size} of {outlierImagesArray.length}{" "}
-              outliers
-            </p>
-            <button
-              className="button"
-              onClick={handleOutliersSubmit}
-              disabled={
-                outlierAnnotations.size !== outlierImagesArray.length ||
-                submitting
-              }
-            >
-              {submitting ? "Saving..." : "Continue to Label Remaining"}
-            </button>
-          </div>
-        </div>
+        <OutlierAnnotationStep
+          outlierImages={outlierImagesArray}
+          annotations={outlierAnnotations}
+          onLabelChange={handleOutlierLabelChange}
+          onSubmit={handleOutliersSubmit}
+          disabled={submitting}
+        />
       )}
 
       {/* Step 3 (Path B): Label remaining images */}
       {step === "label-remaining" && (
-        <div className="card">
-          <h3>Step 3: Label Remaining Images</h3>
-          <p>
-            Assign a name to the remaining{" "}
-            {paginatedData
+        <BatchLabelStep
+          title="Step 3: Label Remaining Images"
+          description="Assign a name to the remaining"
+          imageCount={
+            paginatedData
               ? paginatedData.total_count - selectedOutlierImages.size
-              : 0}{" "}
-            images:
-          </p>
-          <div style={{ marginTop: "15px", marginBottom: "15px" }}>
-            <LabelDropdown
-              value={batchLabel}
-              onChange={handleBatchLabelChange}
-              disabled={submitting}
-            />
-          </div>
-          <button
-            className="button"
-            onClick={handleBatchSubmit}
-            disabled={!batchLabel.trim() || submitting}
-          >
-            {submitting ? "Saving..." : "Save Annotation"}
-          </button>
-        </div>
+              : 0
+          }
+          label={batchLabel}
+          onLabelChange={handleBatchLabelChange}
+          onSubmit={handleBatchSubmit}
+          disabled={submitting}
+        />
       )}
 
       {/* Step 4: Done */}

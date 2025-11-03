@@ -63,6 +63,30 @@ async def get_cluster_images_paginated(
     return service.get_cluster_images_paginated(cluster_id, page, page_size)
 
 
+@router.get("/{cluster_id}/outliers", response_model=schemas.OutlierImagesResponse)
+async def get_cluster_outliers(
+    cluster_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Get images marked as outliers for this cluster.
+
+    Enables resume workflow: when user returns to a cluster with pre-existing
+    outliers, this endpoint fetches them so they can be displayed/edited.
+
+    Fixes data loss bug discovered in Phase 5 Round 6 code review.
+
+    Args:
+        cluster_id: UUID of the cluster
+        db: Database session (injected)
+
+    Returns:
+        OutlierImagesResponse with cluster_id, outliers list, and count
+    """
+    service = ClusterService(db)
+    return service.get_cluster_outliers(cluster_id)
+
+
 @router.post("/{cluster_id}/outliers")
 async def mark_outliers(
     cluster_id: str,

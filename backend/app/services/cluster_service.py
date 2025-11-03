@@ -111,13 +111,14 @@ class ClusterService:
         if not cluster:
             raise HTTPException(status_code=404, detail="Cluster not found")
 
-        # Query pending images only (uses idx_images_cluster_status index)
-        # Gemini HIGH: Only show images that require action, not already annotated
+        # Phase 6 Round 5 Fix (Codex P1): Include both pending AND outlier images
+        # This allows users to deselect pre-existing outliers in the review workflow
+        # Previously only showed "pending", making outliers invisible and immutable
         query = (
             self.db.query(models.Image)
             .filter(
                 models.Image.cluster_id == cluster_id,
-                models.Image.annotation_status == "pending",
+                models.Image.annotation_status.in_(["pending", "outlier"]),
             )
             .order_by(models.Image.id)
         )  # Stable ordering for pagination
@@ -140,9 +141,12 @@ class ClusterService:
 
     def mark_outliers(self, request: schemas.OutlierSelectionRequest) -> Dict:
         """
-        Mark selected images as outliers.
+        Mark selected images as outliers (sync operation).
 
-        Updates Image.annotation_status to 'outlier' and updates Cluster metadata.
+        Updates Image.annotation_status to 'outlier' for selected images.
+        Resets previously-marked outliers that are NOT in the selection back to 'pending'.
+        This enables the resume workflow where users can deselect outliers.
+
         Operation is idempotent - safe to run multiple times.
 
         Args:
@@ -163,14 +167,29 @@ class ClusterService:
         if not cluster:
             raise HTTPException(status_code=404, detail="Cluster not found")
 
-        # Update Image status in bulk (avoid N+1 queries)
-        # Add cluster_id filter to prevent cross-cluster modifications (Gemini CRITICAL)
+        # Phase 6 Round 4 Fix (Codex P1): Reset deselected outliers
+        # Unmark images that were outliers but are NOT in the new selection
+        # This allows users to deselect outliers in the resume workflow
         if request.outlier_image_ids:
+            # Mark selected images as outliers
             self.db.query(models.Image).filter(
                 models.Image.id.in_(request.outlier_image_ids),
                 models.Image.cluster_id
                 == request.cluster_id,  # Security: verify ownership
             ).update({"annotation_status": "outlier"}, synchronize_session=False)
+
+            # Reset images that are marked as outliers but NOT in the new selection
+            self.db.query(models.Image).filter(
+                models.Image.cluster_id == request.cluster_id,
+                models.Image.annotation_status == "outlier",
+                ~models.Image.id.in_(request.outlier_image_ids),  # NOT in selection
+            ).update({"annotation_status": "pending"}, synchronize_session=False)
+        else:
+            # No outliers selected - reset ALL outliers to pending
+            self.db.query(models.Image).filter(
+                models.Image.cluster_id == request.cluster_id,
+                models.Image.annotation_status == "outlier",
+            ).update({"annotation_status": "pending"}, synchronize_session=False)
 
         # Recount total outliers from database (Gemini CRITICAL: ensure accuracy)
         # This makes the operation truly idempotent and handles retries correctly
@@ -356,3 +375,51 @@ class ClusterService:
 
         self.db.commit()
         return {"status": "outliers_annotated", "count": total_updated}
+
+    def get_cluster_outliers(self, cluster_id: str) -> schemas.OutlierImagesResponse:
+        """
+        Get images marked as outliers for this cluster.
+
+        Enables resume workflow: when user returns to a cluster with pre-existing
+        outliers, this endpoint fetches them so they can be displayed/edited.
+
+        Fixes data loss bug discovered in Phase 5 Round 6 code review.
+
+        Args:
+            cluster_id: UUID of the cluster
+
+        Returns:
+            OutlierImagesResponse schema object with cluster_id, outliers list, and count
+
+        Raises:
+            HTTPException: 404 if cluster not found or invalid UUID format
+        """
+        # Validate cluster_id format to prevent 500 errors on invalid UUIDs
+        try:
+            uuid_pkg.UUID(cluster_id)
+        except ValueError:
+            # Raise 404 for invalid UUID format (consistent with non-existent clusters)
+            raise HTTPException(status_code=404, detail="Cluster not found")
+
+        # Verify cluster exists
+        cluster = (
+            self.db.query(models.Cluster)
+            .filter(models.Cluster.id == cluster_id)
+            .first()
+        )
+        if not cluster:
+            raise HTTPException(status_code=404, detail="Cluster not found")
+
+        # Fetch outlier images
+        outliers = (
+            self.db.query(models.Image)
+            .filter(
+                models.Image.cluster_id == cluster_id,
+                models.Image.annotation_status == "outlier",
+            )
+            .all()
+        )
+
+        return schemas.OutlierImagesResponse(
+            cluster_id=cluster.id, outliers=outliers, count=len(outliers)
+        )
