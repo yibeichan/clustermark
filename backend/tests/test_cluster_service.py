@@ -820,12 +820,21 @@ class TestFullWorkflow:
         )
         service.mark_outliers(outlier_request)
 
-        # Verify pagination now excludes outliers
+        # Phase 6 Round 5: Pagination now INCLUDES outliers (for deselection workflow)
+        # This allows users to see and deselect pre-existing outliers
         page1_after = service.get_cluster_images_paginated(
             cluster_id, page=1, page_size=20
         )
         assert len(page1_after["images"]) == 20
-        assert page1_after["total_count"] == 22  # 25 - 3 outliers
+        assert (
+            page1_after["total_count"] == 25
+        )  # Still includes all 25 (22 pending + 3 outliers)
+
+        # Verify outliers are marked correctly
+        outlier_count = sum(
+            1 for img in page1_after["images"] if img.annotation_status == "outlier"
+        )
+        assert outlier_count == 3
 
         # Step 3: Annotate outliers individually
         outlier_annotations = [
