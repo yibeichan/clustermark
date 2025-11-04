@@ -22,8 +22,10 @@ cd clustermark
 
 **2. Create production environment file:**
 ```bash
-# backend/.env
-DATABASE_URL=postgresql://user:secure_password@db:5432/clustermark
+# .env (in project root)
+POSTGRES_USER=user
+POSTGRES_PASSWORD=your_secure_password_here
+POSTGRES_DB=clustermark
 DEBUG=false
 SECRET_KEY=your-secret-key-here-change-this
 ```
@@ -35,10 +37,11 @@ version: '3.8'
 services:
   db:
     image: postgres:15
+    env_file: .env
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: secure_password
-      POSTGRES_DB: clustermark
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
@@ -47,9 +50,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    env_file: .env
     environment:
-      DATABASE_URL: postgresql://user:secure_password@db:5432/clustermark
-      DEBUG: "false"
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DEBUG: ${DEBUG}
+      SECRET_KEY: ${SECRET_KEY}
     volumes:
       - uploads_data:/app/uploads
     depends_on:
@@ -192,17 +197,23 @@ server {
 
 ## Environment Variables
 
-### Backend (.env or environment)
+### Production .env file (project root)
 ```bash
-# Required
-DATABASE_URL=postgresql://user:password@host:5432/clustermark
+# Database (used by both db and backend services)
+POSTGRES_USER=user
+POSTGRES_PASSWORD=your_secure_password_here
+POSTGRES_DB=clustermark
+
+# Backend
 DEBUG=false
-SECRET_KEY=your-secret-key-here
+SECRET_KEY=your-secret-key-here-change-this
 
 # Optional
 UPLOAD_DIR=/app/uploads
 MAX_UPLOAD_SIZE=500000000  # 500MB in bytes
 ```
+
+**Note:** The `.env` file is shared by docker-compose services using `env_file: .env` and variables are interpolated with `${VARIABLE_NAME}` syntax. This ensures the database password is defined once and used consistently.
 
 ### Frontend
 Build-time configuration in `frontend/vite.config.ts`:
