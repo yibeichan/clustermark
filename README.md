@@ -6,6 +6,8 @@ Efficiently label face clusters from Friends TV show episodes.
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![React 18+](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
 
+<!-- TODO: Add demo GIF here - placeholder for visual demonstration -->
+
 ---
 
 ## Quick Start
@@ -269,6 +271,35 @@ clustermark/
 
 **Interactive API docs:** http://localhost:8000/docs
 
+### Database Schema
+
+The system uses PostgreSQL with these main tables:
+
+- **episodes**: Video episodes with clustering results
+  - Fields: id, name, path, status, progress, season, episode, created_at
+  - Tracks upload status and metadata
+  
+- **clusters**: Individual face clusters from episodes
+  - Fields: id, episode_id, name, initial_label, annotation_status, image_paths
+  - Contains array of image paths and annotation status
+  
+- **images**: Individual images within clusters
+  - Fields: id, cluster_id, file_path, initial_label, current_label, annotation_status, is_outlier
+  - Tracks per-image labels and outlier status
+  
+- **split_annotations**: Annotations for multi-person clusters (legacy)
+  - Fields: id, cluster_id, scene_track_pattern, label
+  - Links scene/track patterns to person names
+  
+- **annotators**: Session management for crowdsourcing
+  - Fields: id, session_token, created_at
+  - Tracks annotator sessions
+
+**Relationships:**
+- Episode 1:N Clusters
+- Cluster 1:N Images
+- Cluster 1:N SplitAnnotations
+
 ### Database Migrations
 
 ```bash
@@ -308,12 +339,13 @@ pytest --cov=app tests/    # With coverage
 
 We welcome contributions:
 
-1. Create a feature branch: `git checkout -b feature/your-feature`
-2. Follow existing code style (Black for Python, ESLint for TypeScript)
-3. Add tests for new features
-4. Run tests before committing: `npm test` (frontend), `pytest` (backend)
-5. Write clear commit messages
-6. Open a PR with description of changes
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Follow existing code style (Black for Python, ESLint for TypeScript)
+4. Add tests for new features
+5. Run tests before committing: `npm test` (frontend), `pytest` (backend)
+6. Write clear commit messages
+7. Open a PR with description of changes
 
 **See also:**
 - `docs/internal/BEST-PRACTICES.md` - Development guidelines
@@ -333,9 +365,9 @@ docker ps
 docker-compose down
 docker-compose up --build
 
-# Check logs
-docker-compose logs backend
-docker-compose logs frontend
+# Check logs (follow in real-time)
+docker-compose logs -f backend
+docker-compose logs -f frontend
 ```
 
 **Upload fails:**
@@ -344,7 +376,7 @@ docker-compose logs frontend
 docker-compose exec backend df -h
 
 # Check backend logs
-docker-compose logs backend
+docker-compose logs -f backend
 ```
 
 **Database issues:**
@@ -378,6 +410,7 @@ Built for validating face clustering results from the Friends TV show dataset. D
 
 ## Additional Resources
 
+- **Production Deployment**: See [DEPLOYMENT.md](DEPLOYMENT.md) for production setup, security, scaling, and monitoring
 - **API Documentation**: http://localhost:8000/docs (when running)
 - **Project Implementation Plan**: `docs/internal/implementation-plan-friends-annotation.md`
 - **Lessons Learned**: `docs/internal/LESSONS-LEARNED-*.md`
