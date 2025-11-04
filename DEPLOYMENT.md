@@ -94,6 +94,10 @@ docker-compose -f docker-compose.prod.yml logs -f
 
 ### Option 2: Manual Production Setup
 
+**Prerequisites for this option:**
+- PostgreSQL 15+ installed and running
+- Database created: `createdb clustermark`
+
 **1. Backend Setup:**
 ```bash
 cd backend
@@ -106,7 +110,8 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Set environment variables
-export DATABASE_URL="postgresql://user:password@localhost:5432/clustermark"
+# Replace with your PostgreSQL username and password
+export DATABASE_URL="postgresql://your_pg_user:your_pg_password@localhost:5432/clustermark"
 export DEBUG="false"
 
 # Run migrations
