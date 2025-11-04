@@ -1,6 +1,6 @@
 # Project documentation (contains sensitive planning info)
 CLAUDE.md
-
+docs/*
 # Python
 __pycache__/
 *.py[cod]
