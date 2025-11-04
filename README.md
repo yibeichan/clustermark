@@ -1,525 +1,304 @@
-# ClusterMark - Face Cluster Annotation Tool
+# ClusterMark - Friends Face Annotation Tool
+
+Efficiently label face clusters from Friends TV show episodes.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)](https://fastapi.tiangolo.com/)
+[![React 18+](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
 
-A web-based annotation system for validating and correcting automated face clustering results from the facetracker pipeline. This tool enables human reviewers to efficiently validate face clusters and provide ground truth data for improving clustering algorithms.
+---
 
-![ClusterMark Demo](docs/demo.gif)
+## Quick Start
 
-## 🚀 Features
+### Prerequisites
+- Docker Desktop installed ([download here](https://www.docker.com/products/docker-desktop))
 
-- **📁 Episode Management**: Upload and organize face clustering results from video episodes
-- **🖼️ Interactive Annotation**: Review face clusters with an intuitive grid-based interface
-- **👥 Split Cluster Support**: Handle clusters containing multiple people with scene/track grouping
-- **📊 Progress Tracking**: Monitor annotation progress across episodes and clusters
-- **💾 Export Functionality**: Export annotations in JSON format for analysis and model training
-- **🎨 Responsive UI**: Clean, modern interface optimized for annotation workflows
-- **🔄 Crowdsourcing Ready**: Session management for distributed annotation tasks
+### Step 1: Clone & Start
 
-## 🛠️ Tech Stack
+```bash
+git clone https://github.com/yibeichan/clustermark.git
+cd clustermark
+docker-compose up --build
+```
 
-- **Backend**: FastAPI (Python) with PostgreSQL database
-- **Frontend**: React with TypeScript and Vite
-- **Authentication**: JWT tokens for session management
-- **Deployment**: Docker and Docker Compose
-- **Database**: PostgreSQL with Alembic migrations
+Wait ~1 minute for containers to start. You'll see:
+```
+✔ Container clustermark-db-1        Started
+✔ Container clustermark-backend-1   Started  
+✔ Container clustermark-frontend-1  Started
+```
 
-## 📋 Prerequisites
+### Step 2: Open the App
 
-- **Docker & Docker Compose** (recommended)
-- **Python 3.11+** (for local development)
-- **Node.js 18+** (for local development)
-- **PostgreSQL 15+** (if running without Docker)
+Go to **http://localhost:3000** in your browser.
 
-## 🚀 Quick Start
+### Step 3: Upload Your First Episode
 
-### Option 1: Docker Compose (Recommended)
-
-1. **Clone the repository:**
-   ```bash
-   git clone git@github.com:yibeichan/clustermark.git
-   cd clustermark
-   ```
-
-2. **Start the application:**
-   ```bash
-   docker-compose up --build
-   ```
-
-3. **Access the application:**
-   - **Frontend**: http://localhost:3000
-   - **Backend API**: http://localhost:8000
-   - **API Documentation**: http://localhost:8000/docs
-
-### Option 2: Manual Setup with Micromamba (Recommended for Development)
-
-1. **Clone and setup:**
-   ```bash
-   git clone git@github.com:yibeichan/clustermark.git
-   cd clustermark
-   ```
-
-2. **Create environment with micromamba:**
-   ```bash
-   # One-command environment setup (includes all dependencies)
-   micromamba env create -f environment.yml
-   micromamba activate clustermark
-   ```
-
-3. **Backend setup:**
-   ```bash
-   cd backend
-
-   # Set up database (ensure PostgreSQL is running)
-   export DATABASE_URL="postgresql://user:password@localhost:5432/clustermark"
-   alembic upgrade head
-
-   # Start backend server
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-4. **Frontend setup (in another terminal):**
-   ```bash
-   cd frontend
-
-   # Install dependencies
-   npm install
-
-   # Start development server
-   npm run dev
-   ```
-
-### Option 3: Manual Setup with venv
-
-1. **Clone and setup:**
-   ```bash
-   git clone git@github.com:yibeichan/clustermark.git
-   cd clustermark
-   ```
-
-2. **Backend setup:**
-   ```bash
-   cd backend
-
-   # Create virtual environment
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-   # Install dependencies
-   pip install -r requirements.txt
-
-   # Set up database (ensure PostgreSQL is running)
-   export DATABASE_URL="postgresql://user:password@localhost:5432/clustermark"
-   alembic upgrade head
-
-   # Start backend server
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-3. **Frontend setup (in another terminal):**
-   ```bash
-   cd frontend
-
-   # Install dependencies
-   npm install
-
-   # Start development server
-   npm run dev
-   ```
-
-## 📖 Usage Guide
-
-### Step 1: Prepare Your Data
-
-ClusterMark supports multiple folder naming formats for flexibility:
-
-#### **Format 1: Episode Metadata with Season/Episode (Recommended)**
-Use this format when annotating TV shows like Friends:
+ClusterMark expects a ZIP file with this structure:
 
 ```
 Friends_S01E05.zip
 └── Friends_S01E05/
-    ├── S01E05_cluster-01/         # Unlabeled cluster (season 1, episode 5)
+    ├── S01E05_cluster-01/
     │   ├── scene_0_track_1_frame_001.jpg
     │   ├── scene_0_track_1_frame_015.jpg
     │   └── scene_2_track_5_frame_108.jpg
-    ├── S01E05_Rachel/             # Pre-labeled cluster (season 1, episode 5, character: Rachel)
-    │   ├── scene_1_track_3_frame_042.jpg
-    │   └── scene_1_track_3_frame_055.jpg
     ├── S01E05_cluster-02/
-    └── S01E05_Monica/
-```
-
-**Folder Naming Patterns:**
-- `S01E05_cluster-23` → Season 1, Episode 5, Cluster 23 (unlabeled)
-- `S01E05_Rachel` → Season 1, Episode 5, Pre-labeled as "Rachel"
-- `s01e05_joey` → Case-insensitive (works the same)
-
-#### **Format 2: Legacy Cluster Format**
-For backward compatibility with existing pipelines:
-
-```
-your_episode.zip
-└── episode_name/
-    ├── cluster_01/
-    │   ├── scene_0_track_1_frame_001.jpg
-    │   └── scene_0_track_1_frame_015.jpg
-    ├── cluster_02/
-    └── cluster_XX/
-```
-
-#### **Format 3: Custom Names**
-Any folder name works - the system will use it as a fallback label:
-
-```
-your_episode.zip
-└── episode_name/
-    ├── Unknown_Person_A/
-    ├── Background_Character_1/
-    └── CustomName123/
-```
-
-**Important**: Image filenames should follow the pattern `scene_X_track_Y_frame_Z.jpg` for proper grouping in split annotations.
-
-### Step 2: Upload Episode
-
-1. Open ClusterMark in your browser (http://localhost:3000)
-2. Drag and drop your ZIP file onto the upload area, or click to select
-3. Wait for processing - the system will extract and organize your clusters
-4. Your episode will appear in the episodes list
-
-### Step 3: Annotate Clusters
-
-1. **Navigate to your episode** by clicking on its name
-2. **Start annotation** by clicking "Annotate" on any pending cluster
-3. **Review the cluster**: All faces in the cluster are displayed in a grid
-4. **Answer the key question**: "Do all these faces belong to the same person?"
-
-   **If YES (Single Person):**
-   - Click "Yes - Same Person"
-   - Enter the person's name in the text field
-   - Click "Save Annotation"
-
-   **If NO (Multiple People):**
-   - Click "No - Multiple People"
-   - The system groups images by scene/track combinations
-   - For each group, enter the person's name
-   - Click "Save Split Annotations"
-
-### Step 4: Monitor Progress
-
-- Track annotation progress on the episode page
-- See completed vs. total clusters
-- Episode status updates automatically when all clusters are annotated
-
-### Step 5: Export Results
-
-1. Go to your episode page
-2. Click "Export Annotations" button
-3. Download the JSON file containing all annotations
-4. Use this data to improve your clustering algorithms
-
-## 📁 Project Structure
-
-```
-clustermark/
-├── backend/                    # FastAPI backend application
-│   ├── app/
-│   │   ├── models/            # SQLAlchemy models and Pydantic schemas
-│   │   │   ├── models.py      # Database models
-│   │   │   └── schemas.py     # API schemas
-│   │   ├── routers/           # API route handlers
-│   │   │   ├── episodes.py    # Episode endpoints
-│   │   │   ├── clusters.py    # Cluster endpoints
-│   │   │   └── annotations.py # Annotation endpoints
-│   │   ├── services/          # Business logic services
-│   │   │   ├── episode_service.py
-│   │   │   ├── cluster_service.py
-│   │   │   └── annotation_service.py
-│   │   ├── utils/             # Helper utilities
-│   │   ├── database.py        # Database configuration
-│   │   └── main.py           # FastAPI application entry point
-│   ├── alembic/              # Database migrations
-│   ├── requirements.txt      # Python dependencies
-│   └── Dockerfile           # Backend container configuration
-├── frontend/                 # React frontend application
-│   ├── src/
-│   │   ├── components/       # Reusable React components
-│   │   ├── pages/           # Page components
-│   │   │   ├── HomePage.tsx      # Episode list and upload
-│   │   │   ├── EpisodePage.tsx   # Episode details and cluster list
-│   │   │   └── AnnotationPage.tsx # Cluster annotation interface
-│   │   ├── services/        # API client and utilities
-│   │   │   └── api.ts       # API service functions
-│   │   ├── types/           # TypeScript type definitions
-│   │   │   └── index.ts     # Core type definitions
-│   │   ├── utils/           # Frontend utilities
-│   │   ├── App.tsx          # Main application component
-│   │   ├── main.tsx         # Application entry point
-│   │   └── index.css        # Global styles
-│   ├── package.json         # Node.js dependencies
-│   ├── vite.config.ts       # Vite build configuration
-│   └── Dockerfile          # Frontend container configuration
-├── docker-compose.yml       # Development environment setup
-├── .gitignore              # Git ignore patterns
-└── README.md               # This file
-```
-
-## 📡 API Reference
-
-### Episodes
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/episodes/upload` | Upload cluster folder as ZIP file |
-| `GET` | `/episodes` | List all episodes |
-| `GET` | `/episodes/{id}` | Get episode details |
-| `GET` | `/episodes/{id}/clusters` | Get all clusters for an episode |
-| `GET` | `/episodes/{id}/export` | Export episode annotations as JSON |
-
-### Clusters
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/clusters/{id}` | Get cluster details |
-| `GET` | `/clusters/{id}/images` | Get cluster images grouped by scene/track |
-| `POST` | `/clusters/{id}/annotate` | Submit single-person cluster annotation |
-
-### Annotations
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/annotations/split` | Save split cluster annotations for multiple people |
-| `GET` | `/annotations/tasks/next` | Get next task for crowdsourcing (requires session token) |
-| `POST` | `/annotations/tasks/{id}/complete` | Mark crowdsourcing task as complete |
-
-### API Documentation
-- Interactive API docs: http://localhost:8000/docs
-- OpenAPI schema: http://localhost:8000/openapi.json
-
-## 🗄️ Database Schema
-
-The system uses PostgreSQL with these main tables:
-
-- **`episodes`**: Video episodes with clustering results
-  - Tracks upload status, progress, and metadata
-- **`clusters`**: Individual face clusters from facetracker
-  - Contains image paths and annotation status
-- **`split_annotations`**: Annotations for multi-person clusters
-  - Links scene/track patterns to person names
-- **`annotators`**: Session management for crowdsourcing
-  - Tracks annotator sessions and completed tasks
-
-## 📥 Input Format
-
-**Expected ZIP structure:**
-```
-your_episode.zip
-└── episode_name/
-    ├── cluster_01/
-    │   ├── scene_0_track_1_frame_001.jpg
-    │   ├── scene_0_track_1_frame_015.jpg
-    │   └── scene_2_track_5_frame_108.jpg
-    ├── cluster_02/
-    │   ├── scene_1_track_3_frame_042.jpg
-    │   └── scene_3_track_7_frame_201.jpg
-    └── cluster_XX/
+    │   └── ...
+    └── S01E05_Rachel/  (optional: pre-labeled clusters)
         └── ...
 ```
 
-**File naming requirements:**
-- Images must follow pattern: `scene_{X}_track_{Y}_frame_{Z}.jpg`
-- Cluster folders should be named: `cluster_{XX}`
-- Supported formats: `.jpg`, `.jpeg`, `.png`
+**Folder naming:**
+- `S01E05_cluster-01` → Season 1, Episode 5, Cluster 1 (unlabeled)
+- `S01E05_Rachel` → Season 1, Episode 5, pre-labeled as "Rachel"
+- Case insensitive: `s01e05_joey` works too
 
-## 📤 Output Format
+**Upload:**
+1. Drag & drop your ZIP onto the upload area (or click to browse)
+2. Wait for processing (a few seconds)
+3. Click on your episode name to start annotating
 
-**Exported annotation JSON:**
+### Step 4: Annotate Clusters
+
+The workflow:
+
+```
+1. Review All Images (paginated)
+   ├─ View 10/20/50 images per page
+   ├─ Click images to mark as outliers (red border)
+   └─ Click "Continue"
+
+2. Choose Your Path
+   ├─ No outliers? → Select character from dropdown → Save
+   └─ Has outliers? → Label outliers individually → Label remaining images
+
+3. Next Cluster
+```
+
+**Example: Clean cluster (no outliers)**
+1. See 20 images of Rachel
+2. Click "Continue" (no outliers selected)
+3. Select "Rachel" from dropdown
+4. Click "Save Annotation"
+5. All 20 images labeled as Rachel
+
+**Example: Mixed cluster (has outliers)**
+1. See 18 images of Monica + 2 images of Chandler
+2. Click the 2 Chandler images (they get red borders)
+3. Click "Continue"
+4. Label first outlier: "Chandler"
+5. Label second outlier: "Chandler"
+6. Label remaining 18 images: "Monica"
+
+### Step 5: Export Results
+
+1. Go back to episode page
+2. Click "Export Annotations"
+3. Download JSON file with all your labels
+
+**JSON format:**
 ```json
 {
-  "episode": "episode_name",
-  "single_person_clusters": {
-    "cluster_01": "John Doe",
-    "cluster_03": "Jane Smith"
-  },
-  "split_clusters": {
-    "scene_0_track_1": "John Doe",
-    "scene_0_track_2": "Jane Smith",
-    "scene_1_track_3": "Alice Johnson"
-  },
-  "export_timestamp": "2024-01-01T00:00:00Z",
-  "total_clusters": 15,
-  "annotated_clusters": 15,
-  "episode_status": "completed"
+  "episode_name": "Friends_S01E05",
+  "season": 1,
+  "episode": 5,
+  "annotations": {
+    "cluster-01": {
+      "label": "Rachel",
+      "image_count": 20,
+      "outliers": []
+    },
+    "cluster-02": {
+      "label": "Monica",
+      "image_count": 18,
+      "outliers": [
+        {"image": "scene_0_track_1_frame_001.jpg", "label": "Chandler"},
+        {"image": "scene_0_track_1_frame_015.jpg", "label": "Chandler"}
+      ]
+    }
+  }
 }
 ```
 
-## 🔧 Development
+---
 
-### Environment Variables
+## Usage Tips
 
-**Backend:**
-```bash
-DATABASE_URL=postgresql://user:password@localhost:5432/clustermark
-DEBUG=true
-```
+### Efficient Annotation
 
-**Frontend:**
-- Vite automatically proxies `/api` requests to the backend
+**Batch label clean clusters (fastest):**
+- Most clusters are correct (95%+)
+- If all faces look like the same person, just select name and save
+- The outlier workflow is there if needed
 
-### Adding New Features
+**When to use outliers:**
+- You see 2+ different people in the cluster
+- A few images are clearly wrong (different face)
+- Mixed clusters (e.g., group scenes with multiple characters)
 
-1. **Backend Changes:**
-   ```bash
-   cd backend
-   # Add models to app/models/models.py
-   # Add API endpoints to app/routers/
-   # Add business logic to app/services/
-   # Create migration: alembic revision --autogenerate -m "description"
-   # Apply migration: alembic upgrade head
-   ```
+### Data Preparation
 
-2. **Frontend Changes:**
-   ```bash
-   cd frontend
-   # Add types to src/types/index.ts
-   # Add API calls to src/services/api.ts
-   # Create components in src/components/
-   # Add pages to src/pages/
-   ```
+**Folder naming conventions:**
+- **Recommended**: `SxxEyy_cluster-zz` format (e.g., `S01E05_cluster-01`)
+  - Captures season/episode metadata automatically
+  - Case insensitive: `s01e05` or `S01E05` both work
+  
+- **Pre-labeled clusters**: `SxxEyy_CharacterName` (e.g., `S01E05_Rachel`)
+  - App will suggest "Rachel" as initial label
+  - You can still change it if needed
 
-### Database Migrations
+- **Legacy format**: `cluster_01`, `cluster_02`, etc.
+  - Still works, just doesn't capture season/episode info
 
-```bash
-cd backend
-
-# Create new migration
-alembic revision --autogenerate -m "Add new feature"
-
-# Apply migrations
-alembic upgrade head
-
-# Rollback migration
-alembic downgrade -1
-```
-
-### Testing
-
-```bash
-# Backend tests
-cd backend
-python -m pytest tests/ -v
-
-# Frontend tests
-cd frontend
-npm test
-
-# End-to-end tests
-npm run test:e2e
-```
-
-### Code Quality
-
-```bash
-# Backend linting
-cd backend
-black app/
-flake8 app/
-mypy app/
-
-# Frontend linting
-cd frontend
-npm run lint
-npm run type-check
-```
-
-## 🚀 Deployment
-
-### Production Deployment
-
-1. **Environment Setup:**
-   ```bash
-   # Set production environment variables
-   export DATABASE_URL="postgresql://user:password@prod-db:5432/clustermark"
-   export DEBUG=false
-   ```
-
-2. **Docker Production:**
-   ```bash
-   # Build production images
-   docker-compose -f docker-compose.prod.yml build
-   
-   # Deploy
-   docker-compose -f docker-compose.prod.yml up -d
-   ```
-
-3. **Manual Production:**
-   ```bash
-   # Backend
-   cd backend
-   pip install -r requirements.txt
-   alembic upgrade head
-   gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
-   
-   # Frontend
-   cd frontend
-   npm install
-   npm run build
-   # Serve dist/ with nginx or similar
-   ```
-
-## 🤝 Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. **Fork the repository**
-2. **Create a feature branch:**
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-3. **Make your changes and add tests**
-4. **Run quality checks:**
-   ```bash
-   # Backend
-   cd backend && python -m pytest && black . && flake8 .
-   
-   # Frontend  
-   cd frontend && npm test && npm run lint
-   ```
-5. **Commit your changes:**
-   ```bash
-   git commit -m "Add amazing feature"
-   ```
-6. **Push to your branch:**
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-7. **Open a Pull Request**
-
-### Development Guidelines
-
-- Follow existing code style and conventions
-- Add tests for new features
-- Update documentation as needed
-- Keep commits focused and atomic
-- Write clear commit messages
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Built for integration with the facetracker pipeline
-- Designed for efficient human-in-the-loop annotation workflows
-- Optimized for crowdsourcing and distributed annotation tasks
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/yibeichan/clustermark/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yibeichan/clustermark/discussions)
-- **Email**: [your-email@domain.com](mailto:your-email@domain.com)
+**Image naming requirements:**
+- Must follow pattern: `scene_X_track_Y_frame_Z.jpg`
+- Example: `scene_0_track_1_frame_001.jpg`
+- Required for splitting clusters by scene/track
 
 ---
 
-**Happy Annotating! 🎯**
+## Features
+
+- Fast annotation: Label entire clusters in 3 clicks (10-20 images at once)
+- Friends characters: Dropdown menu with main cast (Chandler, Joey, Monica, Rachel, Ross, Phoebe)
+- Paginated review: Browse through 10/20/50 images per page
+- Outlier handling: Click to mark images that don't belong, then label them separately
+- Progress tracking: See how many clusters you've labeled
+- Export results: Download annotations as JSON
+
+**Current Status:**
+- Core annotation workflow complete (Phases 1-6)
+- Testing infrastructure complete (Phase 7)
+- All features listed above are working
+
+**Known limitations:**
+- No keyboard shortcuts yet
+- Single user mode (no concurrent annotations)
+- No undo/redo functionality (save is final)
+
+---
+
+## Production Deployment
+
+To run ClusterMark on a server (instead of your local machine):
+
+**1. Clone on your server:**
+```bash
+git clone https://github.com/yibeichan/clustermark.git
+cd clustermark
+```
+
+**2. Change default password:**
+Edit `docker-compose.yml` and change the database password:
+```yaml
+db:
+  environment:
+    POSTGRES_PASSWORD: your_secure_password_here  # Change from "password"
+```
+
+**3. Start in detached mode:**
+```bash
+docker-compose up -d --build
+```
+
+**4. Access the app:**
+- Frontend: http://your-server-ip:3000
+- Backend API: http://your-server-ip:8000
+
+**Optional: Set up domain and HTTPS**
+
+Use nginx as a reverse proxy:
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    
+    location / {
+        proxy_pass http://localhost:3000;
+    }
+    
+    location /api {
+        proxy_pass http://localhost:8000;
+    }
+}
+```
+
+Then add SSL with Let's Encrypt: `certbot --nginx -d your-domain.com`
+
+---
+
+## For Developers
+
+Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Development setup instructions
+- Project structure and architecture
+- API documentation
+- Database schema
+- Testing guidelines
+- Code style and best practices
+
+---
+
+## Troubleshooting
+
+**App won't start:**
+```bash
+# Check Docker is running
+docker ps
+
+# Restart containers
+docker-compose down
+docker-compose up --build
+
+# Check logs (follow in real-time)
+docker-compose logs -f backend
+docker-compose logs -f frontend
+```
+
+**Upload fails:**
+```bash
+# Check uploads volume has space
+docker-compose exec backend df -h
+
+# Check backend logs
+docker-compose logs -f backend
+```
+
+**Database issues:**
+```bash
+# Reset database (WARNING: deletes all data)
+docker-compose down -v
+docker-compose up --build
+```
+
+**Port conflicts (3000 or 8000 already in use):**
+```bash
+# Edit docker-compose.yml and change ports:
+ports:
+  - "3001:3000"  # Frontend
+  - "8001:8000"  # Backend
+```
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+## Acknowledgments
+
+Built for validating face clustering results from the Friends TV show dataset. Designed for efficient human-in-the-loop annotation workflows.
+
+---
+
+## Additional Resources
+
+- **API Documentation**: http://localhost:8000/docs (when running)
+- **Contributing Guide**: See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines
+
+**Questions or Issues?**
+- GitHub Issues: https://github.com/yibeichan/clustermark/issues
+- Discussions: https://github.com/yibeichan/clustermark/discussions
