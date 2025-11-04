@@ -27,7 +27,6 @@ POSTGRES_USER=user
 POSTGRES_PASSWORD=your_secure_password_here
 POSTGRES_DB=clustermark
 DEBUG=false
-SECRET_KEY=your-secret-key-here-change-this
 ```
 
 **3. Create docker-compose.prod.yml:**
@@ -54,7 +53,6 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       DEBUG: ${DEBUG}
-      SECRET_KEY: ${SECRET_KEY}
     volumes:
       - uploads_data:/app/uploads
     depends_on:
@@ -110,7 +108,6 @@ pip install -r requirements.txt
 # Set environment variables
 export DATABASE_URL="postgresql://user:password@localhost:5432/clustermark"
 export DEBUG="false"
-export SECRET_KEY="your-secret-key"
 
 # Run migrations
 alembic upgrade head
@@ -166,7 +163,6 @@ server {
 
 ### Security
 - [ ] Change default database password
-- [ ] Set strong SECRET_KEY
 - [ ] Disable DEBUG mode (DEBUG=false)
 - [ ] Set up firewall (allow only 80/443)
 - [ ] Enable HTTPS with SSL certificate
@@ -206,7 +202,6 @@ POSTGRES_DB=clustermark
 
 # Backend
 DEBUG=false
-SECRET_KEY=your-secret-key-here-change-this
 
 # Optional
 UPLOAD_DIR=/app/uploads
@@ -214,6 +209,8 @@ MAX_UPLOAD_SIZE=500000000  # 500MB in bytes
 ```
 
 **Note:** The `.env` file is shared by docker-compose services using `env_file: .env` and variables are interpolated with `${VARIABLE_NAME}` syntax. This ensures the database password is defined once and used consistently.
+
+**Authentication:** This application currently has no authentication system. All endpoints are open. For production use with sensitive data, consider adding authentication middleware or restricting access via firewall/VPN.
 
 ### Frontend
 Build-time configuration in `frontend/vite.config.ts`:
