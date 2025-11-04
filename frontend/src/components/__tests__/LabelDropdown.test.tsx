@@ -1,4 +1,5 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import LabelDropdown from "../LabelDropdown";
 
 describe("LabelDropdown", () => {
@@ -9,100 +10,111 @@ describe("LabelDropdown", () => {
 
   it("shows all Friends characters", () => {
     render(<LabelDropdown onChange={vi.fn()} />);
-    expect(screen.getByText("Chandler")).toBeInTheDocument();
-    expect(screen.getByText("Joey")).toBeInTheDocument();
-    expect(screen.getByText("Monica")).toBeInTheDocument();
-    expect(screen.getByText("Rachel")).toBeInTheDocument();
-    expect(screen.getByText("Ross")).toBeInTheDocument();
-    expect(screen.getByText("Phoebe")).toBeInTheDocument();
-    expect(screen.getByText("Other")).toBeInTheDocument();
+    const characters = [
+      "Chandler",
+      "Joey",
+      "Monica",
+      "Rachel",
+      "Ross",
+      "Phoebe",
+      "Other",
+    ];
+    for (const character of characters) {
+      expect(screen.getByText(character)).toBeInTheDocument();
+    }
   });
 
-  it("calls onChange immediately when selecting a character", () => {
+  it("calls onChange immediately when selecting a character", async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<LabelDropdown onChange={onChange} />);
 
     const select = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "Rachel" } });
+    await user.selectOptions(select, "Rachel");
 
     expect(onChange).toHaveBeenCalledWith("Rachel", false);
     expect(onChange).toHaveBeenCalledTimes(1);
   });
 
-  it("shows custom input when Other is selected", () => {
+  it("shows custom input when Other is selected", async () => {
+    const user = userEvent.setup();
     render(<LabelDropdown onChange={vi.fn()} />);
 
     const select = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "Other" } });
+    await user.selectOptions(select, "Other");
 
     expect(screen.getByPlaceholderText(/Enter name/)).toBeInTheDocument();
   });
 
-  it("does NOT call onChange on every keystroke", () => {
+  it("does NOT call onChange on every keystroke", async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<LabelDropdown onChange={onChange} />);
 
     const select = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "Other" } });
+    await user.selectOptions(select, "Other");
 
     const input = screen.getByPlaceholderText(/Enter name/);
-    fireEvent.change(input, { target: { value: "Rachel" } });
+    await user.type(input, "Rachel");
 
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("calls onChange on blur with custom label", () => {
+  it("calls onChange on blur with custom label", async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<LabelDropdown onChange={onChange} />);
 
     const select = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "Other" } });
+    await user.selectOptions(select, "Other");
 
     const input = screen.getByPlaceholderText(/Enter name/);
-    fireEvent.change(input, { target: { value: "Rachel" } });
-    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    await user.type(input, "Rachel");
+    await user.tab(); // tab away to trigger blur
 
     expect(onChange).toHaveBeenCalledWith("Rachel", true);
   });
 
-  it("calls onChange on Enter key", () => {
+  it("calls onChange on Enter key", async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<LabelDropdown onChange={onChange} />);
 
     const select = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "Other" } });
+    await user.selectOptions(select, "Other");
 
     const input = screen.getByPlaceholderText(/Enter name/);
-    fireEvent.change(input, { target: { value: "Janice" } });
-    fireEvent.keyDown(input, { key: "Enter" });
+    await user.type(input, "Janice{Enter}");
 
     expect(onChange).toHaveBeenCalledWith("Janice", true);
   });
 
-  it("trims whitespace from custom labels", () => {
+  it("trims whitespace from custom labels", async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<LabelDropdown onChange={onChange} />);
 
     const select = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "Other" } });
+    await user.selectOptions(select, "Other");
 
     const input = screen.getByPlaceholderText(/Enter name/);
-    fireEvent.change(input, { target: { value: "   Rachel   " } });
-    fireEvent.blur(input);
+    await user.type(input, "   Rachel   ");
+    await user.tab(); // tab away to trigger blur
 
     expect(onChange).toHaveBeenCalledWith("Rachel", true);
   });
 
-  it("does not call onChange if empty", () => {
+  it("does not call onChange if empty", async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<LabelDropdown onChange={onChange} />);
 
     const select = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "Other" } });
+    await user.selectOptions(select, "Other");
 
     const input = screen.getByPlaceholderText(/Enter name/);
-    fireEvent.change(input, { target: { value: "   " } });
-    fireEvent.blur(input);
+    await user.type(input, "   ");
+    await user.tab(); // tab away to trigger blur
 
     expect(onChange).not.toHaveBeenCalled();
   });
