@@ -179,7 +179,52 @@ The workflow:
 
 ---
 
+## Production Deployment
 
+To run ClusterMark on a server (instead of your local machine):
+
+**1. Clone on your server:**
+```bash
+git clone https://github.com/yibeichan/clustermark.git
+cd clustermark
+```
+
+**2. Change default password:**
+Edit `docker-compose.yml` and change the database password:
+```yaml
+db:
+  environment:
+    POSTGRES_PASSWORD: your_secure_password_here  # Change from "password"
+```
+
+**3. Start in detached mode:**
+```bash
+docker-compose up -d --build
+```
+
+**4. Access the app:**
+- Frontend: http://your-server-ip:3000
+- Backend API: http://your-server-ip:8000
+
+**Optional: Set up domain and HTTPS**
+
+Use nginx as a reverse proxy:
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    
+    location / {
+        proxy_pass http://localhost:3000;
+    }
+    
+    location /api {
+        proxy_pass http://localhost:8000;
+    }
+}
+```
+
+Then add SSL with Let's Encrypt: `certbot --nginx -d your-domain.com`
 
 ---
 
@@ -251,11 +296,8 @@ Built for validating face clustering results from the Friends TV show dataset. D
 
 ## Additional Resources
 
-- **Production Deployment**: See [DEPLOYMENT.md](DEPLOYMENT.md) for production setup, security, scaling, and monitoring
 - **API Documentation**: http://localhost:8000/docs (when running)
-- **Project Implementation Plan**: `docs/internal/implementation-plan-friends-annotation.md`
-- **Lessons Learned**: `docs/internal/LESSONS-LEARNED-*.md`
-- **Development Guide**: `docs/internal/BEST-PRACTICES.md`
+- **Contributing Guide**: See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines
 
 **Questions or Issues?**
 - GitHub Issues: https://github.com/yibeichan/clustermark/issues
