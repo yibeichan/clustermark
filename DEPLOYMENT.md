@@ -6,9 +6,10 @@ This guide covers deploying ClusterMark to production environments.
 
 - Linux server (Ubuntu 20.04+ or similar)
 - Docker & Docker Compose installed
-- PostgreSQL 15+ (can use dockerized version)
 - Domain name (optional, for HTTPS)
 - SSL certificate (optional, for HTTPS)
+
+**Note:** PostgreSQL is included in Docker Compose - no separate installation needed.
 
 ## Deployment Options
 
@@ -20,75 +21,31 @@ git clone https://github.com/yibeichan/clustermark.git
 cd clustermark
 ```
 
-**2. Create production environment file:**
-```bash
-# .env (in project root)
-POSTGRES_USER=user
-POSTGRES_PASSWORD=your_secure_password_here
-POSTGRES_DB=clustermark
-DEBUG=false
-```
+**2. Change default database password (IMPORTANT for production):**
 
-**3. Create docker-compose.prod.yml:**
+Edit `docker-compose.yml` and change the password:
 ```yaml
-version: '3.8'
-
-services:
-  db:
-    image: postgres:15
-    env_file: .env
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: always
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      DEBUG: ${DEBUG}
-    volumes:
-      - uploads_data:/app/uploads
-    depends_on:
-      - db
-    restart: always
-    ports:
-      - "8000:8000"
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    restart: always
-
-volumes:
-  postgres_data:
-  uploads_data:
+db:
+  environment:
+    POSTGRES_PASSWORD: your_secure_password_here  # Change from default "password"
 ```
 
-**4. Deploy:**
+**3. Deploy:**
 ```bash
-docker-compose -f docker-compose.prod.yml up -d --build
+docker-compose up -d --build
 ```
 
-**5. Run migrations:**
+**4. Check status:**
 ```bash
-docker-compose -f docker-compose.prod.yml exec backend alembic upgrade head
+docker-compose ps
+docker-compose logs -f
 ```
 
-**6. Check status:**
-```bash
-docker-compose -f docker-compose.prod.yml ps
-docker-compose -f docker-compose.prod.yml logs -f
-```
+The app will be available at:
+- Frontend: http://your-server:3000
+- Backend API: http://your-server:8000
+
+**That's it!** PostgreSQL, backend, and frontend all start automatically. Database migrations run automatically on backend startup.
 
 ---
 
@@ -198,24 +155,25 @@ server {
 
 ## Environment Variables
 
-### Production .env file (project root)
-```bash
-# Database (used by both db and backend services)
-POSTGRES_USER=user
-POSTGRES_PASSWORD=your_secure_password_here
-POSTGRES_DB=clustermark
+### Using Docker Compose (Recommended)
 
-# Backend
-DEBUG=false
-
-# Optional
-UPLOAD_DIR=/app/uploads
-MAX_UPLOAD_SIZE=500000000  # 500MB in bytes
+All configuration is in `docker-compose.yml`. For production, only change:
+```yaml
+db:
+  environment:
+    POSTGRES_PASSWORD: your_secure_password_here  # Change this!
 ```
 
-**Note:** The `.env` file is shared by docker-compose services using `env_file: .env` and variables are interpolated with `${VARIABLE_NAME}` syntax. This ensures the database password is defined once and used consistently.
+The backend automatically uses the database password from the `db` service.
 
-**Authentication:** This application currently has no authentication system. All endpoints are open. For production use with sensitive data, consider adding authentication middleware or restricting access via firewall/VPN.
+### Using .env file (Optional)
+
+You can override settings with a `.env` file:
+```bash
+POSTGRES_PASSWORD=your_secure_password_here
+```
+
+**Authentication:** This application has no authentication system. All endpoints are open. For production with sensitive data, restrict access via firewall/VPN or add authentication middleware.
 
 ### Frontend
 Build-time configuration in `frontend/vite.config.ts`:
