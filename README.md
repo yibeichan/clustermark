@@ -6,8 +6,6 @@ Efficiently label face clusters from Friends TV show episodes.
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![React 18+](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
 
-<!-- TODO: Add demo GIF here - placeholder for visual demonstration -->
-
 ---
 
 ## Quick Start
