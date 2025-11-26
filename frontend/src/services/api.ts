@@ -10,6 +10,7 @@ import {
   ClusterAnnotateBatch,
   OutlierAnnotation,
   Image,
+  EpisodeSpeakersResponse,
 } from "../types";
 
 const API_BASE = "/api";
@@ -28,6 +29,10 @@ export const episodeApi = {
     return api.post<Episode>("/episodes/upload", formData);
   },
   export: (id: string) => api.get(`/episodes/${id}/export`),
+
+  // Phase 7: Get episode-specific speakers for dynamic dropdown
+  getSpeakers: (id: string) =>
+    api.get<EpisodeSpeakersResponse>(`/episodes/${id}/speakers`),
 };
 
 export const clusterApi = {

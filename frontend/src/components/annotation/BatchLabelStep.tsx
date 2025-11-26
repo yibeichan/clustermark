@@ -8,6 +8,7 @@ interface BatchLabelStepProps {
   onLabelChange: (label: string, isCustom: boolean) => void;
   onSubmit: () => void;
   disabled: boolean;
+  speakers?: string[]; // Phase 7: Dynamic speaker list from episode data
 }
 
 /**
@@ -30,6 +31,7 @@ export default function BatchLabelStep({
   onLabelChange,
   onSubmit,
   disabled,
+  speakers,
 }: BatchLabelStepProps) {
   return (
     <div className="card">
@@ -42,6 +44,7 @@ export default function BatchLabelStep({
           value={label}
           onChange={onLabelChange}
           disabled={disabled}
+          speakers={speakers}
         />
       </div>
       <button

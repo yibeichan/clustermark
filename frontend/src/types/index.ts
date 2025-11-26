@@ -94,3 +94,11 @@ export interface OutlierAnnotation {
   person_name: string;
   is_custom_label: boolean;
 }
+
+// Phase 7: Episode speakers for dynamic dropdown
+export interface EpisodeSpeakersResponse {
+  episode_id: string;
+  season: number | null;
+  episode_number: number | null;
+  speakers: string[]; // Speaker names in title case, sorted by frequency (desc)
+}

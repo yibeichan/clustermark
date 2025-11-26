@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { clusterApi } from "../services/api";
+import { clusterApi, episodeApi } from "../services/api";
 import {
   Cluster,
   PaginatedImagesResponse,
@@ -60,6 +60,10 @@ export default function AnnotationPage() {
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Phase 7: Episode-specific speakers for dynamic dropdown
+  const [speakers, setSpeakers] = useState<string[]>([]);
+  const [speakersLoading, setSpeakersLoading] = useState(false);
+
   // Load cluster metadata on mount
   // Fix: Prevent race condition with cleanup function (same pattern as pagination)
   useEffect(() => {
@@ -86,6 +90,39 @@ export default function AnnotationPage() {
       };
     }
   }, [clusterId]);
+
+  // Phase 7: Fetch episode-specific speakers when cluster metadata is loaded
+  useEffect(() => {
+    if (cluster?.episode_id) {
+      let isCancelled = false;
+
+      const loadSpeakers = async () => {
+        setSpeakersLoading(true);
+        try {
+          const response = await episodeApi.getSpeakers(cluster.episode_id);
+          if (!isCancelled) {
+            setSpeakers(response.data.speakers);
+          }
+        } catch (err) {
+          if (!isCancelled) {
+            // Fallback to empty list (LabelDropdown has default characters)
+            console.error("Failed to load speakers:", err);
+            setSpeakers([]);
+          }
+        } finally {
+          if (!isCancelled) {
+            setSpeakersLoading(false);
+          }
+        }
+      };
+
+      loadSpeakers();
+
+      return () => {
+        isCancelled = true;
+      };
+    }
+  }, [cluster?.episode_id]);
 
   // Phase 6c: Load existing outliers on mount (enables resume workflow)
   useEffect(() => {
@@ -407,7 +444,8 @@ export default function AnnotationPage() {
           label={batchLabel}
           onLabelChange={handleBatchLabelChange}
           onSubmit={handleBatchSubmit}
-          disabled={submitting}
+          disabled={submitting || speakersLoading}
+          speakers={speakers.length > 0 ? speakers : undefined}
         />
       )}
 
@@ -418,7 +456,8 @@ export default function AnnotationPage() {
           annotations={outlierAnnotations}
           onLabelChange={handleOutlierLabelChange}
           onSubmit={handleOutliersSubmit}
-          disabled={submitting}
+          disabled={submitting || speakersLoading}
+          speakers={speakers.length > 0 ? speakers : undefined}
         />
       )}
 
@@ -435,7 +474,8 @@ export default function AnnotationPage() {
           label={batchLabel}
           onLabelChange={handleBatchLabelChange}
           onSubmit={handleBatchSubmit}
-          disabled={submitting}
+          disabled={submitting || speakersLoading}
+          speakers={speakers.length > 0 ? speakers : undefined}
         />
       )}
 
