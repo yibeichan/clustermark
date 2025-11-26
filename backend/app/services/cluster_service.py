@@ -1,12 +1,38 @@
-import os
-from pathlib import Path
-from typing import List, Dict
+import uuid as uuid_pkg
 from collections import defaultdict
+from pathlib import Path
+from typing import Dict, List
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
+
 from app.models import models, schemas
-import uuid as uuid_pkg
+
+
+def normalize_label(label: str) -> str:
+    """
+    Normalize label to title case for consistent storage.
+
+    Prevents duplicate entries like "Rachel", "RACHEL", "rachel".
+    Applied when saving batch and outlier annotations.
+
+    Args:
+        label: Raw label input from user
+
+    Returns:
+        Title-cased label, or "unlabeled" if empty
+
+    Examples:
+        "RACHEL" -> "Rachel"
+        "rachel" -> "Rachel"
+        "mrs. geller" -> "Mrs. Geller"
+        "" -> "unlabeled"
+        "  " -> "unlabeled"
+    """
+    if not label or not label.strip():
+        return "unlabeled"
+    return label.strip().title()
 
 
 class ClusterService:
@@ -254,13 +280,16 @@ class ClusterService:
         # Now this check happens AFTER acquiring lock, preventing race conditions
         cluster_was_already_completed = cluster.annotation_status == "completed"
 
+        # Phase 7: Normalize label to title case for consistent storage
+        normalized_label = normalize_label(annotation.person_name)
+
         # Update only pending images (don't overwrite already-annotated outliers)
         self.db.query(models.Image).filter(
             models.Image.cluster_id == cluster_id,
             models.Image.annotation_status == "pending",
         ).update(
             {
-                "current_label": annotation.person_name,
+                "current_label": normalized_label,
                 "annotation_status": "annotated",
                 "annotated_at": func.now(),
             },
@@ -268,7 +297,7 @@ class ClusterService:
         )
 
         # Update cluster status
-        cluster.person_name = annotation.person_name
+        cluster.person_name = normalized_label
         cluster.is_single_person = True
         cluster.annotation_status = "completed"
 
@@ -353,8 +382,10 @@ class ClusterService:
 
         # Perform one bulk update per person_name (instead of N individual updates)
         # Gemini HIGH + Codex P1: Filter by both ID and outlier status for safety
+        # Phase 7: Normalize labels to title case for consistent storage
         total_updated = 0
         for person_name, image_ids_to_update in updates_by_name.items():
+            normalized_label = normalize_label(person_name)
             result = (
                 self.db.query(models.Image)
                 .filter(
@@ -364,7 +395,7 @@ class ClusterService:
                 )
                 .update(
                     {
-                        "current_label": person_name,
+                        "current_label": normalized_label,
                         "annotation_status": "annotated",
                         "annotated_at": func.now(),
                     },
