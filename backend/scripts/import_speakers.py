@@ -53,8 +53,14 @@ def normalize_speaker_name(raw_name: str) -> str:
 
     Returns:
         Title-cased speaker name
+
+    Raises:
+        ValueError: If the speaker name is empty or just whitespace.
     """
-    return raw_name.strip().title()
+    stripped_name = raw_name.strip()
+    if not stripped_name:
+        raise ValueError("Speaker name cannot be empty.")
+    return stripped_name.title()
 
 
 def parse_episode(episode_str: str) -> tuple[int, int]:

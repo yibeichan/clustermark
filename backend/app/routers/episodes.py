@@ -63,4 +63,4 @@ async def get_episode_speakers(episode_id: str, db: Session = Depends(get_db)):
         EpisodeSpeakersResponse with episode metadata and speaker list
     """
     service = EpisodeService(db)
-    return service.get_episode_speakers(episode_id)
+    return await service.get_episode_speakers(episode_id)

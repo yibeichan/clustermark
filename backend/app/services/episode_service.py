@@ -13,8 +13,21 @@ logger = logging.getLogger(__name__)
 
 # Pre-compiled regex patterns for performance (Gemini HIGH priority)
 # Compiling at module level prevents redundant compilation on every parse call
+
+# Pattern: friends_s01e01a_cluster-XXX or friends_s01e01b_cluster-XXX
+# Matches: optional prefix (friends_), season, episode, optional suffix (a/b), cluster number
+# Groups: (season, episode, suffix, cluster_number)
+PATTERN_FRIENDS_CLUSTER = re.compile(
+    r"^(?:friends_)?[sS](\d+)[eE](\d+)([a-z])?_cluster-?(\d+)$", re.IGNORECASE
+)
+
+# Pattern: S01E05_cluster-23 (standard format)
 PATTERN_SXXEYY_CLUSTER = re.compile(r"^S(\d+)E(\d+)_cluster-?(\d+)$", re.IGNORECASE)
+
+# Pattern: S01E05_Rachel (standard format with character name)
 PATTERN_SXXEYY_CHAR = re.compile(r"^S(\d+)E(\d+)_(.+)$", re.IGNORECASE)
+
+# Pattern: cluster_123 (legacy format)
 PATTERN_LEGACY_CLUSTER = re.compile(r"^cluster_(\d+)$", re.IGNORECASE)
 
 
@@ -59,24 +72,46 @@ class EpisodeService:
         Parse folder name to extract episode metadata and labels.
 
         Supported formats (case-insensitive):
+        - friends_s01e01a_cluster-23 → season=1, episode=1, cluster=23, label="cluster-23"
+        - friends_s01e01b_cluster-23 → season=1, episode=1, cluster=23, label="cluster-23"
         - S01E05_cluster-23 → season=1, episode=5, cluster=23, label="cluster-23"
         - S01E05_Rachel → season=1, episode=5, label="Rachel"
         - cluster_123 → cluster=123, label="cluster_123"
         - AnyName → label="AnyName" (fallback)
 
+        Note: The 'a' or 'b' suffix in friends_s01e01a is ignored - both map to same episode
+
         Args:
-            folder_name: Folder name to parse (e.g., "S01E05_cluster-23")
+            folder_name: Folder name to parse (e.g., "friends_s01e01a_cluster-23")
 
         Returns:
             Dict with keys: season, episode, cluster_number, label (all optional except label)
-            Example: {"season": 1, "episode": 5, "cluster_number": 23, "label": "cluster-23"}
+            Example: {"season": 1, "episode": 1, "cluster_number": 23, "label": "cluster-23"}
         """
         logger.info(f"Parsing folder: {folder_name}")
 
         # Sanitize input first
         sanitized = self._sanitize_folder_name(folder_name).strip()
 
-        # Pattern 1: SxxEyy_cluster-N (e.g., S01E05_cluster-23)
+        # Pattern 1: friends_s01e01a_cluster-N or s01e01b_cluster-N
+        # Captures: season, episode, optional suffix (a/b/etc), cluster number
+        # Both 'a' and 'b' suffixes map to the same episode
+        match = PATTERN_FRIENDS_CLUSTER.match(sanitized)
+        if match:
+            season = int(match.group(1))
+            episode = int(match.group(2))
+            # group(3) is the optional suffix (a/b) - we ignore it
+            cluster_num = int(match.group(4))
+            result = {
+                "season": season,
+                "episode": episode,
+                "cluster_number": cluster_num,
+                "label": f"cluster-{cluster_num}",
+            }
+            logger.debug(f"Matched friends_sXXeYY_cluster pattern: {result}")
+            return result
+
+        # Pattern 2: SxxEyy_cluster-N (e.g., S01E05_cluster-23)
         # Captures: season, episode, cluster number
         match = PATTERN_SXXEYY_CLUSTER.match(sanitized)
         if match:
@@ -92,7 +127,7 @@ class EpisodeService:
             logger.debug(f"Matched SxxEyy_cluster pattern: {result}")
             return result
 
-        # Pattern 2: SxxEyy_CharacterName (e.g., S01E05_Rachel)
+        # Pattern 3: SxxEyy_CharacterName (e.g., S01E05_Rachel)
         # Captures: season, episode, character name
         match = PATTERN_SXXEYY_CHAR.match(sanitized)
         if match:
@@ -103,7 +138,7 @@ class EpisodeService:
             logger.debug(f"Matched SxxEyy_character pattern: {result}")
             return result
 
-        # Pattern 3: cluster_N (legacy format, e.g., cluster_123)
+        # Pattern 4: cluster_N (legacy format, e.g., cluster_123)
         # Captures: cluster number
         match = PATTERN_LEGACY_CLUSTER.match(sanitized)
         if match:
@@ -309,7 +344,9 @@ class EpisodeService:
             "export_timestamp": episode.upload_timestamp.isoformat(),
         }
 
-    def get_episode_speakers(self, episode_id: str) -> schemas.EpisodeSpeakersResponse:
+    async def get_episode_speakers(
+        self, episode_id: str
+    ) -> schemas.EpisodeSpeakersResponse:
         """
         Get speakers for an episode, sorted by utterance frequency.
 

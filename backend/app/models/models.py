@@ -171,8 +171,8 @@ class EpisodeSpeaker(Base):
     )
 
     id = Column(UUID(), primary_key=True, server_default=text("gen_random_uuid()"))
-    season = Column(Integer, nullable=False, index=True)
-    episode_number = Column(Integer, nullable=False, index=True)
+    season = Column(Integer, nullable=False)
+    episode_number = Column(Integer, nullable=False)
     speaker_name = Column(
         String(255), nullable=False
     )  # Title case (e.g., "Rachel", "Mrs. Geller")

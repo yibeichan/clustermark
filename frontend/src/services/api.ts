@@ -20,7 +20,7 @@ const api = axios.create({
 });
 
 export const episodeApi = {
-  list: () => api.get<Episode[]>("/episodes"),
+  list: () => api.get<Episode[]>("/episodes/"),
   get: (id: string) => api.get<Episode>(`/episodes/${id}`),
   getClusters: (id: string) => api.get<Cluster[]>(`/episodes/${id}/clusters`),
   upload: (file: File) => {

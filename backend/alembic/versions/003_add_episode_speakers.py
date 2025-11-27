@@ -18,7 +18,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "003_add_episode_speakers"
-down_revision = "002_add_uuid_defaults_and_cascade_deletes"
+down_revision = "002_uuid_cascade"
 branch_labels = None
 depends_on = None
 

@@ -69,9 +69,12 @@ class TestNormalizeSpeakerName:
         assert normalize_speaker_name("\tmonica\n") == "Monica"
 
     def test_empty_string(self):
-        """Test empty string handling."""
-        assert normalize_speaker_name("") == ""
-        assert normalize_speaker_name("   ") == ""
+        """Test empty string raises ValueError."""
+        with pytest.raises(ValueError, match="Speaker name cannot be empty"):
+            normalize_speaker_name("")
+
+        with pytest.raises(ValueError, match="Speaker name cannot be empty"):
+            normalize_speaker_name("   ")
 
 
 class TestParseEpisode:
@@ -245,10 +248,11 @@ class TestGetEpisodeSpeakers:
         test_db.refresh(episode)
         return episode
 
-    def test_get_speakers_returns_list(self, test_db, episode_with_speakers):
+    @pytest.mark.asyncio
+    async def test_get_speakers_returns_list(self, test_db, episode_with_speakers):
         """Test that get_episode_speakers returns speaker list."""
         service = EpisodeService(test_db)
-        result = service.get_episode_speakers(str(episode_with_speakers.id))
+        result = await service.get_episode_speakers(str(episode_with_speakers.id))
 
         assert isinstance(result, EpisodeSpeakersResponse)
         assert result.episode_id == episode_with_speakers.id
@@ -256,10 +260,11 @@ class TestGetEpisodeSpeakers:
         assert result.episode_number == 1
         assert len(result.speakers) == 6
 
-    def test_speakers_sorted_by_frequency(self, test_db, episode_with_speakers):
+    @pytest.mark.asyncio
+    async def test_speakers_sorted_by_frequency(self, test_db, episode_with_speakers):
         """Test speakers are sorted by utterances descending."""
         service = EpisodeService(test_db)
-        result = service.get_episode_speakers(str(episode_with_speakers.id))
+        result = await service.get_episode_speakers(str(episode_with_speakers.id))
 
         # Should be sorted: Monica (73), Rachel (48), Ross (47), Joey (39), Chandler (39), Phoebe (18)
         assert result.speakers[0] == "Monica"
@@ -267,16 +272,18 @@ class TestGetEpisodeSpeakers:
         assert result.speakers[2] == "Ross"
         assert result.speakers[-1] == "Phoebe"
 
-    def test_episode_not_found(self, test_db):
+    @pytest.mark.asyncio
+    async def test_episode_not_found(self, test_db):
         """Test 404 when episode doesn't exist."""
         service = EpisodeService(test_db)
 
         with pytest.raises(Exception) as exc_info:
-            service.get_episode_speakers(str(uuid.uuid4()))
+            await service.get_episode_speakers(str(uuid.uuid4()))
 
         assert "not found" in str(exc_info.value.detail).lower()
 
-    def test_episode_without_metadata(self, test_db):
+    @pytest.mark.asyncio
+    async def test_episode_without_metadata(self, test_db):
         """Test empty list returned for episode without season/episode metadata."""
         # Create episode without season/episode_number
         episode = Episode(
@@ -291,13 +298,14 @@ class TestGetEpisodeSpeakers:
         test_db.refresh(episode)
 
         service = EpisodeService(test_db)
-        result = service.get_episode_speakers(str(episode.id))
+        result = await service.get_episode_speakers(str(episode.id))
 
         assert result.speakers == []
         assert result.season is None
         assert result.episode_number is None
 
-    def test_episode_with_no_speaker_data(self, test_db):
+    @pytest.mark.asyncio
+    async def test_episode_with_no_speaker_data(self, test_db):
         """Test empty list when no speaker data exists for episode."""
         # Create episode for S99E99 (no speaker data)
         episode = Episode(
@@ -312,7 +320,7 @@ class TestGetEpisodeSpeakers:
         test_db.refresh(episode)
 
         service = EpisodeService(test_db)
-        result = service.get_episode_speakers(str(episode.id))
+        result = await service.get_episode_speakers(str(episode.id))
 
         assert result.speakers == []
         assert result.season == 99
