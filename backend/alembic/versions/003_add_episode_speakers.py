@@ -1,7 +1,7 @@
 """Add episode_speakers table for episode-specific speaker reference data
 
 Revision ID: 003_add_episode_speakers
-Revises: 002_add_uuid_defaults_and_cascade_deletes
+Revises: 002_uuid_cascade
 Create Date: 2025-01-XX
 
 This migration creates the episode_speakers table to store speaker data
