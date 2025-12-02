@@ -445,7 +445,7 @@ export default function AnnotationPage() {
           onLabelChange={handleBatchLabelChange}
           onSubmit={handleBatchSubmit}
           disabled={submitting || speakersLoading}
-          speakers={speakers.length > 0 ? speakers : undefined}
+          speakers={speakers}
         />
       )}
 
@@ -457,7 +457,7 @@ export default function AnnotationPage() {
           onLabelChange={handleOutlierLabelChange}
           onSubmit={handleOutliersSubmit}
           disabled={submitting || speakersLoading}
-          speakers={speakers.length > 0 ? speakers : undefined}
+          speakers={speakers}
         />
       )}
 
@@ -475,7 +475,7 @@ export default function AnnotationPage() {
           onLabelChange={handleBatchLabelChange}
           onSubmit={handleBatchSubmit}
           disabled={submitting || speakersLoading}
-          speakers={speakers.length > 0 ? speakers : undefined}
+          speakers={speakers}
         />
       )}
 

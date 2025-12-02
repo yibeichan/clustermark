@@ -56,11 +56,12 @@ class TestNormalizeSpeakerName:
         assert normalize_speaker_name("dr. burke") == "Dr. Burke"
 
     def test_preserves_punctuation(self):
-        """Test that punctuation is preserved."""
+        """Test that punctuation is preserved correctly (including apostrophes)."""
         assert normalize_speaker_name("mrs. geller") == "Mrs. Geller"
+        # Fixed: word.capitalize() preserves apostrophes correctly (not .title())
         assert (
             normalize_speaker_name("chrissy on three's company")
-            == "Chrissy On Three'S Company"
+            == "Chrissy On Three's Company"
         )
 
     def test_strips_whitespace(self):

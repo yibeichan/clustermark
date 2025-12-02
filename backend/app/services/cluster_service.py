@@ -16,6 +16,8 @@ def normalize_label(label: str) -> str:
 
     Prevents duplicate entries like "Rachel", "RACHEL", "rachel".
     Applied when saving batch and outlier annotations.
+    Uses word.capitalize() instead of str.title() to avoid apostrophe issues
+    (e.g., "three's" -> "Three's" not "Three'S").
 
     Args:
         label: Raw label input from user
@@ -32,7 +34,7 @@ def normalize_label(label: str) -> str:
     """
     if not label or not label.strip():
         return "unlabeled"
-    return label.strip().title()
+    return " ".join(word.capitalize() for word in label.strip().split())
 
 
 class ClusterService:

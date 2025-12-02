@@ -40,6 +40,8 @@ def normalize_speaker_name(raw_name: str) -> str:
     Normalize speaker names to title case.
 
     Handles special cases like honorifics and multi-word names.
+    Uses word.capitalize() instead of str.title() to avoid apostrophe issues
+    (e.g., "three's" -> "Three's" not "Three'S").
 
     Examples:
         monica -> Monica
@@ -60,7 +62,7 @@ def normalize_speaker_name(raw_name: str) -> str:
     stripped_name = raw_name.strip()
     if not stripped_name:
         raise ValueError("Speaker name cannot be empty.")
-    return stripped_name.title()
+    return " ".join(word.capitalize() for word in stripped_name.split())
 
 
 def parse_episode(episode_str: str) -> tuple[int, int]:
