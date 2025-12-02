@@ -342,6 +342,20 @@ class EpisodeService:
             .all()
         )
 
+        # Prefetch split annotations (multi-person workflow)
+        split_annotations = (
+            self.db.query(models.SplitAnnotation)
+            .join(
+                models.Cluster,
+                models.SplitAnnotation.cluster_id == models.Cluster.id,
+            )
+            .filter(models.Cluster.episode_id == episode_id)
+            .all()
+        )
+        split_annotations_by_cluster = defaultdict(list)
+        for split in split_annotations:
+            split_annotations_by_cluster[split.cluster_id].append(split)
+
         # PERFORMANCE FIX: Fetch ALL images for episode in one query (avoid N+1)
         # Only fetch annotated images and outliers (not pending)
         all_images = (
@@ -384,6 +398,7 @@ class EpisodeService:
         outliers_found = 0
         annotated_clusters = 0
         not_human_clusters = 0
+        split_annotations_export = {}
 
         for cluster in clusters:
             # Only include completed clusters
@@ -392,10 +407,11 @@ class EpisodeService:
 
             annotated_clusters += 1
 
-            # Get images for this cluster (from pre-fetched dict)
+            # Get images and split annotations for this cluster
             images = images_by_cluster.get(cluster.id, [])
+            cluster_splits = split_annotations_by_cluster.get(cluster.id, [])
 
-            if not images:
+            if not images and not cluster_splits:
                 continue
 
             # CORRECT OUTLIER DETECTION: Check annotation_status, not label comparison
@@ -454,7 +470,41 @@ class EpisodeService:
             for outlier in outliers:
                 character_distribution[outlier["label"]] += 1
 
-            total_faces += total_images_in_cluster
+            counted_paths = set(image_paths)
+            counted_paths.update(outlier["image_path"] for outlier in outliers)
+
+            # Include split annotations (multi-person clusters)
+            split_entries = []
+            split_face_count = 0
+            for split in cluster_splits:
+                normalized_paths = []
+                if split.image_paths:
+                    for raw_path in split.image_paths:
+                        relative_path = self._convert_to_relative_path(raw_path)
+                        if relative_path and relative_path not in counted_paths:
+                            normalized_paths.append(relative_path)
+                            counted_paths.add(relative_path)
+                split_label = (
+                    split.person_name.lower() if split.person_name else "unlabeled"
+                )
+                if normalized_paths:
+                    character_distribution[split_label] += len(normalized_paths)
+                    split_face_count += len(normalized_paths)
+                split_entries.append(
+                    {
+                        "scene_track_pattern": split.scene_track_pattern,
+                        "label": split_label,
+                        "image_count": len(normalized_paths),
+                        "image_paths": normalized_paths,
+                    }
+                )
+                split_annotations_export[split.scene_track_pattern] = {
+                    "cluster_name": cluster.cluster_name,
+                    "label": split_label,
+                    "image_paths": normalized_paths,
+                }
+
+            total_faces += total_images_in_cluster + split_face_count
 
             # Add to cluster_annotations
             cluster_annotations[cluster.cluster_name] = {
@@ -463,6 +513,7 @@ class EpisodeService:
                 "image_count": len(main_images),
                 "image_paths": image_paths,
                 "outliers": outliers,
+                "split_annotations": split_entries,
             }
 
         # Build statistics
@@ -478,6 +529,7 @@ class EpisodeService:
         return {
             "metadata": metadata,
             "cluster_annotations": cluster_annotations,
+            "split_annotations": split_annotations_export,
             "statistics": statistics,
         }
 

@@ -135,6 +135,7 @@ class TestExportAnnotationsFormat:
 
         assert "metadata" in result
         assert "cluster_annotations" in result
+        assert "split_annotations" in result
         assert "statistics" in result
 
     async def test_metadata_structure(self, test_db: Session, sample_episode):
@@ -171,12 +172,14 @@ class TestExportAnnotationsFormat:
         assert "image_count" in cluster1
         assert "image_paths" in cluster1
         assert "outliers" in cluster1
+        assert "split_annotations" in cluster1
 
         assert cluster1["label"] == "rachel"
         assert cluster1["confidence"] == "high"  # No outliers
         assert cluster1["image_count"] == 5
         assert len(cluster1["image_paths"]) == 5
         assert len(cluster1["outliers"]) == 0
+        assert cluster1["split_annotations"] == []
 
     async def test_outliers_exported_correctly(self, test_db: Session, sample_episode):
         """Outliers should be in separate list with their labels."""
@@ -322,6 +325,76 @@ class TestExportAnnotationsEdgeCases:
         assert "cluster-02" not in result["cluster_annotations"]
         assert result["statistics"]["total_clusters"] == 2
         assert result["statistics"]["annotated_clusters"] == 1
+
+    async def test_export_handles_split_annotated_clusters(self, test_db: Session):
+        """Split-annotated clusters should be included with per-track labels."""
+        episode = models.Episode(
+            name="Split_Episode",
+            total_clusters=1,
+            status="completed",
+        )
+        test_db.add(episode)
+        test_db.flush()
+
+        cluster = models.Cluster(
+            episode_id=episode.id,
+            cluster_name="cluster-04",
+            is_single_person=False,
+            annotation_status="completed",
+        )
+        test_db.add(cluster)
+        test_db.flush()
+
+        image_paths = [
+            "uploads/Split_Episode/cluster-04/scene_0_track_1_frame_000.jpg",
+            "uploads/Split_Episode/cluster-04/scene_0_track_1_frame_001.jpg",
+            "uploads/Split_Episode/cluster-04/scene_0_track_2_frame_000.jpg",
+            "uploads/Split_Episode/cluster-04/scene_0_track_2_frame_001.jpg",
+        ]
+        for path in image_paths:
+            img = models.Image(
+                cluster_id=cluster.id,
+                episode_id=episode.id,
+                file_path=path,
+                filename=path.split("/")[-1],
+                initial_label="cluster-04",
+                annotation_status="pending",
+            )
+            test_db.add(img)
+
+        split_one = models.SplitAnnotation(
+            cluster_id=cluster.id,
+            scene_track_pattern="scene_0_track_1",
+            person_name="Rachel",
+            image_paths=image_paths[:2],
+        )
+        split_two = models.SplitAnnotation(
+            cluster_id=cluster.id,
+            scene_track_pattern="scene_0_track_2",
+            person_name="Monica",
+            image_paths=image_paths[2:],
+        )
+        test_db.add_all([split_one, split_two])
+        test_db.commit()
+
+        service = EpisodeService(test_db)
+        result = await service.export_annotations(str(episode.id))
+
+        assert "cluster-04" in result["cluster_annotations"]
+        split_cluster = result["cluster_annotations"]["cluster-04"]
+        assert split_cluster["image_count"] == 0
+        assert len(split_cluster["split_annotations"]) == 2
+        assert result["split_annotations"]["scene_0_track_1"]["label"] == "rachel"
+        assert result["split_annotations"]["scene_0_track_2"]["label"] == "monica"
+
+        total_split_images = sum(
+            entry["image_count"] for entry in split_cluster["split_annotations"]
+        )
+        assert total_split_images == 4
+        assert result["statistics"]["total_faces"] == 4
+        char_dist = result["statistics"]["character_distribution"]
+        assert char_dist["rachel"] == 2
+        assert char_dist["monica"] == 2
 
 
 class TestExportAnnotationsPerformance:
