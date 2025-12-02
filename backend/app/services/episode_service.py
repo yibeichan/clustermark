@@ -1,6 +1,7 @@
 import logging
 import re
 import zipfile
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List
 
@@ -10,6 +11,13 @@ from sqlalchemy.orm import Session
 from app.models import models, schemas
 
 logger = logging.getLogger(__name__)
+
+# Export format default values (configurable)
+DEFAULT_MODEL_NAME = "vggface2"
+DEFAULT_ANNOTATOR_ID = "user_01"
+
+# Confidence thresholds for outlier ratio
+MEDIUM_CONFIDENCE_OUTLIER_RATIO_THRESHOLD = 0.2
 
 # Pre-compiled regex patterns for performance (Gemini HIGH priority)
 # Compiling at module level prevents redundant compilation on every parse call
@@ -308,6 +316,17 @@ class EpisodeService:
         return clusters
 
     async def export_annotations(self, episode_id: str) -> Dict:
+        """
+        Export annotations in detailed format with image-level labels.
+
+        Returns format matching clustering pipeline expectations:
+        - metadata: episode info, annotation metadata
+        - cluster_annotations: per-cluster labels with image paths and outliers
+        - statistics: aggregated counts and distribution
+        """
+        from collections import defaultdict
+
+        # Fetch episode
         episode = (
             self.db.query(models.Episode)
             .filter(models.Episode.id == episode_id)
@@ -316,33 +335,228 @@ class EpisodeService:
         if not episode:
             raise HTTPException(status_code=404, detail="Episode not found")
 
+        # Fetch all clusters for this episode
         clusters = (
             self.db.query(models.Cluster)
             .filter(models.Cluster.episode_id == episode_id)
             .all()
         )
 
-        annotations = {}
-        split_annotations = {}
+        # Prefetch split annotations (multi-person workflow)
+        split_annotations = (
+            self.db.query(models.SplitAnnotation)
+            .join(
+                models.Cluster,
+                models.SplitAnnotation.cluster_id == models.Cluster.id,
+            )
+            .filter(models.Cluster.episode_id == episode_id)
+            .all()
+        )
+        split_annotations_by_cluster = defaultdict(list)
+        for split in split_annotations:
+            split_annotations_by_cluster[split.cluster_id].append(split)
+
+        # PERFORMANCE FIX: Fetch ALL images for episode in one query (avoid N+1)
+        # Only fetch annotated images and outliers (not pending)
+        all_images = (
+            self.db.query(models.Image)
+            .filter(models.Image.episode_id == episode_id)
+            .filter(models.Image.annotation_status.in_(["annotated", "outlier"]))
+            .all()
+        )
+
+        # Group images by cluster_id for fast lookup
+        images_by_cluster = defaultdict(list)
+        for img in all_images:
+            images_by_cluster[img.cluster_id].append(img)
+
+        # Build metadata
+        episode_name_lower = episode.name.lower().replace(" ", "_")
+        if not episode_name_lower.startswith("friends_"):
+            episode_name_lower = f"friends_{episode_name_lower}"
+
+        # Format annotation_date properly for timezone-aware timestamps
+        annotation_date = episode.upload_timestamp.isoformat()
+        if episode.upload_timestamp.tzinfo is None:
+            # Only add Z if timestamp is naive (no timezone)
+            annotation_date += "Z"
+
+        metadata = {
+            "episode_id": episode_name_lower,
+            "season": episode.season if episode.season else None,
+            "episode": episode.episode_number if episode.episode_number else None,
+            "clustering_file": f"{episode_name_lower}_matched_faces_with_clusters.json",
+            "model_name": DEFAULT_MODEL_NAME,
+            "annotation_date": annotation_date,
+            "annotator_id": DEFAULT_ANNOTATOR_ID,
+        }
+
+        # Build cluster annotations and statistics
+        cluster_annotations = {}
+        character_distribution = defaultdict(int)
+        total_faces = 0
+        outliers_found = 0
+        annotated_clusters = 0
+        not_human_clusters = 0
+        split_annotations_export = {}
 
         for cluster in clusters:
-            if cluster.is_single_person and cluster.person_name:
-                annotations[cluster.cluster_name] = cluster.person_name
-            elif not cluster.is_single_person:
-                splits = (
-                    self.db.query(models.SplitAnnotation)
-                    .filter(models.SplitAnnotation.cluster_id == cluster.id)
-                    .all()
+            # Only include completed clusters
+            if cluster.annotation_status != "completed":
+                continue
+
+            annotated_clusters += 1
+
+            # Get images and split annotations for this cluster
+            images = images_by_cluster.get(cluster.id, [])
+            cluster_splits = split_annotations_by_cluster.get(cluster.id, [])
+
+            if not images and not cluster_splits:
+                continue
+
+            # CORRECT OUTLIER DETECTION: Check annotation_status, not label comparison
+            outlier_images = [
+                img for img in images if img.annotation_status == "outlier"
+            ]
+            main_images = [
+                img for img in images if img.annotation_status == "annotated"
+            ]
+
+            # Determine cluster label (lowercase for export)
+            cluster_label = (
+                cluster.person_name.lower() if cluster.person_name else "unlabeled"
+            )
+
+            # Track not_human clusters
+            if cluster_label == "not_human":
+                not_human_clusters += 1
+
+            # Calculate confidence based on outlier ratio
+            total_images_in_cluster = len(main_images) + len(outlier_images)
+            if total_images_in_cluster > 0:
+                outlier_ratio = len(outlier_images) / total_images_in_cluster
+            else:
+                outlier_ratio = 0
+
+            if outlier_ratio == 0:
+                confidence = "high"
+            elif outlier_ratio < MEDIUM_CONFIDENCE_OUTLIER_RATIO_THRESHOLD:
+                confidence = "medium"
+            else:
+                confidence = "low"
+
+            # Build image paths (relative format, lowercase)
+            image_paths = []
+            for img in main_images:
+                relative_path = self._convert_to_relative_path(img.file_path)
+                if relative_path:
+                    image_paths.append(relative_path)
+
+            # Build outliers list
+            outliers = []
+            for img in outlier_images:
+                relative_path = self._convert_to_relative_path(img.file_path)
+                if relative_path:
+                    outlier_label = (
+                        img.current_label.lower() if img.current_label else "unlabeled"
+                    )
+                    outliers.append(
+                        {"image_path": relative_path, "label": outlier_label}
+                    )
+                    outliers_found += 1
+
+            # Update character distribution (defaultdict simplifies this)
+            character_distribution[cluster_label] += len(main_images)
+            for outlier in outliers:
+                character_distribution[outlier["label"]] += 1
+
+            counted_paths = set(image_paths)
+            counted_paths.update(outlier["image_path"] for outlier in outliers)
+
+            # Include split annotations (multi-person clusters)
+            split_entries = []
+            split_face_count = 0
+            for split in cluster_splits:
+                normalized_paths = []
+                if split.image_paths:
+                    for raw_path in split.image_paths:
+                        relative_path = self._convert_to_relative_path(raw_path)
+                        if relative_path and relative_path not in counted_paths:
+                            normalized_paths.append(relative_path)
+                            counted_paths.add(relative_path)
+                split_label = (
+                    split.person_name.lower() if split.person_name else "unlabeled"
                 )
-                for split in splits:
-                    split_annotations[split.scene_track_pattern] = split.person_name
+                if normalized_paths:
+                    character_distribution[split_label] += len(normalized_paths)
+                    split_face_count += len(normalized_paths)
+                split_entries.append(
+                    {
+                        "scene_track_pattern": split.scene_track_pattern,
+                        "label": split_label,
+                        "image_count": len(normalized_paths),
+                        "image_paths": normalized_paths,
+                    }
+                )
+                split_annotations_export[split.scene_track_pattern] = {
+                    "cluster_name": cluster.cluster_name,
+                    "label": split_label,
+                    "image_paths": normalized_paths,
+                }
+
+            total_faces += total_images_in_cluster + split_face_count
+
+            # Add to cluster_annotations
+            cluster_annotations[cluster.cluster_name] = {
+                "label": cluster_label,
+                "confidence": confidence,
+                "image_count": len(main_images),
+                "image_paths": image_paths,
+                "outliers": outliers,
+                "split_annotations": split_entries,
+            }
+
+        # Build statistics
+        statistics = {
+            "total_clusters": len(clusters),
+            "annotated_clusters": annotated_clusters,
+            "total_faces": total_faces,
+            "outliers_found": outliers_found,
+            "not_human_clusters": not_human_clusters,
+            "character_distribution": character_distribution,
+        }
 
         return {
-            "episode": episode.name,
-            "single_person_clusters": annotations,
-            "split_clusters": split_annotations,
-            "export_timestamp": episode.upload_timestamp.isoformat(),
+            "metadata": metadata,
+            "cluster_annotations": cluster_annotations,
+            "split_annotations": split_annotations_export,
+            "statistics": statistics,
         }
+
+    def _convert_to_relative_path(self, file_path: str) -> str:
+        """
+        Convert file path to relative format for export.
+
+        Converts:
+            uploads/Friends_S01E05/S01E05_cluster-01/scene_0_track_1_frame_001.jpg
+        To:
+            friends_s01e05/s01e05_cluster-01/scene_0_track_1_frame_001.jpg
+
+        Handles paths of any depth by lowercasing the entire relative path.
+        Returns empty string if path is invalid.
+        """
+        if not file_path:
+            return ""
+
+        # Remove 'uploads/' prefix (only first occurrence)
+        path_without_uploads = file_path.replace("uploads/", "", 1)
+
+        # Expect at least 3 parts: episode_folder/cluster_folder/filename
+        if len(path_without_uploads.split("/")) < 3:
+            return ""
+
+        # Convert the whole relative path to lowercase to handle any depth
+        return path_without_uploads.lower()
 
     async def get_episode_speakers(
         self, episode_id: str

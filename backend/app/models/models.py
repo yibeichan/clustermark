@@ -1,3 +1,4 @@
+import json
 import uuid as uuid_pkg
 
 from sqlalchemy import (
@@ -49,6 +50,36 @@ class UUID(TypeDecorator):
         return value
 
 
+class TextArray(TypeDecorator):
+    """
+    Platform-independent text array.
+
+    Stores PostgreSQL ARRAY(Text) natively. For SQLite (tests), stores JSON string.
+    """
+
+    impl = ARRAY(Text)
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(ARRAY(Text))
+        return dialect.type_descriptor(Text)
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        if dialect.name == "postgresql":
+            return value
+        return json.dumps(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if dialect.name == "postgresql":
+            return value
+        return json.loads(value)
+
+
 class Episode(Base):
     __tablename__ = "episodes"
 
@@ -77,7 +108,7 @@ class Cluster(Base):
         UUID(), ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False
     )
     cluster_name = Column(String(100), nullable=False)
-    image_paths = Column(ARRAY(Text))
+    image_paths = Column(TextArray())
     is_single_person = Column(Boolean, nullable=True)
     person_name = Column(String(255), nullable=True)
     annotation_status = Column(String(20), server_default=text("'pending'"))
@@ -104,7 +135,7 @@ class SplitAnnotation(Base):
     )
     scene_track_pattern = Column(String(100), nullable=False)
     person_name = Column(String(255), nullable=False)
-    image_paths = Column(ARRAY(Text))
+    image_paths = Column(TextArray())
 
     cluster = relationship("Cluster", back_populates="split_annotations")
 
