@@ -143,4 +143,74 @@ describe("LabelDropdown", () => {
     const select = screen.getByRole("combobox");
     expect(select).toBeDisabled();
   });
+
+  // Phase 7: Dynamic speakers tests
+  describe("with custom speakers prop", () => {
+    const customSpeakers = ["Monica", "Rachel", "Gunther", "Janice"];
+
+    it("shows custom speakers instead of default characters", () => {
+      render(<LabelDropdown onChange={vi.fn()} speakers={customSpeakers} />);
+
+      // Custom speakers should be visible
+      for (const speaker of customSpeakers) {
+        expect(screen.getByText(speaker)).toBeInTheDocument();
+      }
+
+      // Default characters not in custom list should NOT be visible
+      expect(screen.queryByText("Chandler")).not.toBeInTheDocument();
+      expect(screen.queryByText("Joey")).not.toBeInTheDocument();
+
+      // Other option should still be available
+      expect(screen.getByText("Other")).toBeInTheDocument();
+    });
+
+    it("matches value case-insensitively against speakers", () => {
+      render(
+        <LabelDropdown
+          onChange={vi.fn()}
+          speakers={customSpeakers}
+          value="MONICA"
+        />,
+      );
+
+      const select = screen.getByRole("combobox") as HTMLSelectElement;
+      expect(select.value).toBe("Monica"); // Matched to proper case from speakers
+    });
+
+    it("shows Other input for value not in speakers list", () => {
+      render(
+        <LabelDropdown
+          onChange={vi.fn()}
+          speakers={customSpeakers}
+          value="Ross"
+        />,
+      );
+
+      const select = screen.getByRole("combobox") as HTMLSelectElement;
+      expect(select.value).toBe("Other");
+      expect(screen.getByDisplayValue("Ross")).toBeInTheDocument();
+    });
+
+    it("calls onChange with selected custom speaker", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      render(<LabelDropdown onChange={onChange} speakers={customSpeakers} />);
+
+      const select = screen.getByRole("combobox");
+      await user.selectOptions(select, "Gunther");
+
+      expect(onChange).toHaveBeenCalledWith("Gunther", false);
+    });
+
+    it("renders empty dropdown with empty speakers array", () => {
+      render(<LabelDropdown onChange={vi.fn()} speakers={[]} />);
+
+      // Only placeholder and Other should be visible
+      expect(screen.getByText("Select character...")).toBeInTheDocument();
+      expect(screen.getByText("Other")).toBeInTheDocument();
+
+      // No character options
+      expect(screen.queryByText("Monica")).not.toBeInTheDocument();
+    });
+  });
 });

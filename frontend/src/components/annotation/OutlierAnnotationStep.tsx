@@ -8,6 +8,7 @@ interface OutlierAnnotationStepProps {
   onLabelChange: (imageId: string, label: string, isCustom: boolean) => void;
   onSubmit: () => void;
   disabled: boolean;
+  speakers?: string[]; // Phase 7: Dynamic speaker list from episode data
 }
 
 /**
@@ -28,6 +29,7 @@ export default function OutlierAnnotationStep({
   onLabelChange,
   onSubmit,
   disabled,
+  speakers,
 }: OutlierAnnotationStepProps) {
   return (
     <div className="card">
@@ -57,6 +59,7 @@ export default function OutlierAnnotationStep({
                   onLabelChange(image.id, label, isCustom)
                 }
                 disabled={disabled}
+                speakers={speakers}
               />
             </div>
           </div>

@@ -11,10 +11,47 @@ Tests cover:
 """
 
 import pytest
-from fastapi import HTTPException
-from app.services.cluster_service import ClusterService
 from app.models import models, schemas
+from app.services.cluster_service import ClusterService, normalize_label
+from fastapi import HTTPException
 from sqlalchemy.sql import func
+
+
+class TestNormalizeLabel:
+    """Test label normalization function (Phase 7)."""
+
+    def test_lowercase_to_title(self):
+        """Test basic lowercase to title case conversion."""
+        assert normalize_label("rachel") == "Rachel"
+        assert normalize_label("monica") == "Monica"
+
+    def test_uppercase_to_title(self):
+        """Test uppercase to title case conversion."""
+        assert normalize_label("RACHEL") == "Rachel"
+        assert normalize_label("MONICA") == "Monica"
+
+    def test_mixed_case_to_title(self):
+        """Test mixed case to title case conversion."""
+        assert normalize_label("rAcHeL") == "Rachel"
+
+    def test_multi_word_names(self):
+        """Test multi-word names get title case on each word."""
+        assert normalize_label("mrs. geller") == "Mrs. Geller"
+        assert normalize_label("MR. HECKLES") == "Mr. Heckles"
+
+    def test_strips_whitespace(self):
+        """Test leading/trailing whitespace is stripped."""
+        assert normalize_label("  rachel  ") == "Rachel"
+        assert normalize_label("\trachel\n") == "Rachel"
+
+    def test_empty_string_returns_unlabeled(self):
+        """Test empty string returns 'unlabeled'."""
+        assert normalize_label("") == "unlabeled"
+
+    def test_whitespace_only_returns_unlabeled(self):
+        """Test whitespace-only string returns 'unlabeled'."""
+        assert normalize_label("   ") == "unlabeled"
+        assert normalize_label("\t\n") == "unlabeled"
 
 
 @pytest.fixture

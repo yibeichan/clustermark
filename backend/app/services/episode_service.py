@@ -1,21 +1,35 @@
-import os
-import json
-import zipfile
-import re
 import logging
+import re
+import zipfile
 from pathlib import Path
 from typing import Dict, List
+
 from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
+
 from app.models import models, schemas
 
 logger = logging.getLogger(__name__)
 
 # Pre-compiled regex patterns for performance (Gemini HIGH priority)
 # Compiling at module level prevents redundant compilation on every parse call
-PATTERN_SXXEYY_CLUSTER = re.compile(r'^S(\d+)E(\d+)_cluster-?(\d+)$', re.IGNORECASE)
-PATTERN_SXXEYY_CHAR = re.compile(r'^S(\d+)E(\d+)_(.+)$', re.IGNORECASE)
-PATTERN_LEGACY_CLUSTER = re.compile(r'^cluster_(\d+)$', re.IGNORECASE)
+
+# Pattern: friends_s01e01a_cluster-XXX or friends_s01e01b_cluster-XXX
+# Matches: optional prefix (friends_), season, episode, optional suffix (a/b), cluster number
+# Groups: (season, episode, suffix, cluster_number)
+PATTERN_FRIENDS_CLUSTER = re.compile(
+    r"^(?:friends_)?[sS](\d+)[eE](\d+)([a-z])?_cluster-?(\d+)$", re.IGNORECASE
+)
+
+# Pattern: S01E05_cluster-23 (standard format)
+PATTERN_SXXEYY_CLUSTER = re.compile(r"^S(\d+)E(\d+)_cluster-?(\d+)$", re.IGNORECASE)
+
+# Pattern: S01E05_Rachel (standard format with character name)
+PATTERN_SXXEYY_CHAR = re.compile(r"^S(\d+)E(\d+)_(.+)$", re.IGNORECASE)
+
+# Pattern: cluster_123 (legacy format)
+PATTERN_LEGACY_CLUSTER = re.compile(r"^cluster_(\d+)$", re.IGNORECASE)
+
 
 class EpisodeService:
     def __init__(self, db: Session):
@@ -39,16 +53,16 @@ class EpisodeService:
             Sanitized folder name safe for processing
         """
         # Remove null bytes (injection attacks)
-        sanitized = name.replace('\x00', '')
+        sanitized = name.replace("\x00", "")
 
         # Remove path separators FIRST to prevent bypasses (Gemini CRITICAL)
         # Must happen before '..' removal to prevent attacks like '..//' → '..'
-        sanitized = sanitized.replace('/', '').replace('\\', '')
+        sanitized = sanitized.replace("/", "").replace("\\", "")
 
         # Repeatedly remove '..' to handle bypasses like '....' → '..' (Gemini CRITICAL)
         # Simple replace('..', '') can be defeated with '....' which becomes '..' after one pass
-        while '..' in sanitized:
-            sanitized = sanitized.replace('..', '')
+        while ".." in sanitized:
+            sanitized = sanitized.replace("..", "")
 
         logger.debug(f"Sanitized '{name}' → '{sanitized}'")
         return sanitized
@@ -58,24 +72,46 @@ class EpisodeService:
         Parse folder name to extract episode metadata and labels.
 
         Supported formats (case-insensitive):
+        - friends_s01e01a_cluster-23 → season=1, episode=1, cluster=23, label="cluster-23"
+        - friends_s01e01b_cluster-23 → season=1, episode=1, cluster=23, label="cluster-23"
         - S01E05_cluster-23 → season=1, episode=5, cluster=23, label="cluster-23"
         - S01E05_Rachel → season=1, episode=5, label="Rachel"
         - cluster_123 → cluster=123, label="cluster_123"
         - AnyName → label="AnyName" (fallback)
 
+        Note: The 'a' or 'b' suffix in friends_s01e01a is ignored - both map to same episode
+
         Args:
-            folder_name: Folder name to parse (e.g., "S01E05_cluster-23")
+            folder_name: Folder name to parse (e.g., "friends_s01e01a_cluster-23")
 
         Returns:
             Dict with keys: season, episode, cluster_number, label (all optional except label)
-            Example: {"season": 1, "episode": 5, "cluster_number": 23, "label": "cluster-23"}
+            Example: {"season": 1, "episode": 1, "cluster_number": 23, "label": "cluster-23"}
         """
         logger.info(f"Parsing folder: {folder_name}")
 
         # Sanitize input first
         sanitized = self._sanitize_folder_name(folder_name).strip()
 
-        # Pattern 1: SxxEyy_cluster-N (e.g., S01E05_cluster-23)
+        # Pattern 1: friends_s01e01a_cluster-N or s01e01b_cluster-N
+        # Captures: season, episode, optional suffix (a/b/etc), cluster number
+        # Both 'a' and 'b' suffixes map to the same episode
+        match = PATTERN_FRIENDS_CLUSTER.match(sanitized)
+        if match:
+            season = int(match.group(1))
+            episode = int(match.group(2))
+            # group(3) is the optional suffix (a/b) - we ignore it
+            cluster_num = int(match.group(4))
+            result = {
+                "season": season,
+                "episode": episode,
+                "cluster_number": cluster_num,
+                "label": f"cluster-{cluster_num}",
+            }
+            logger.debug(f"Matched friends_sXXeYY_cluster pattern: {result}")
+            return result
+
+        # Pattern 2: SxxEyy_cluster-N (e.g., S01E05_cluster-23)
         # Captures: season, episode, cluster number
         match = PATTERN_SXXEYY_CLUSTER.match(sanitized)
         if match:
@@ -86,35 +122,28 @@ class EpisodeService:
                 "season": season,
                 "episode": episode,
                 "cluster_number": cluster_num,
-                "label": f"cluster-{cluster_num}"
+                "label": f"cluster-{cluster_num}",
             }
             logger.debug(f"Matched SxxEyy_cluster pattern: {result}")
             return result
 
-        # Pattern 2: SxxEyy_CharacterName (e.g., S01E05_Rachel)
+        # Pattern 3: SxxEyy_CharacterName (e.g., S01E05_Rachel)
         # Captures: season, episode, character name
         match = PATTERN_SXXEYY_CHAR.match(sanitized)
         if match:
             season = int(match.group(1))
             episode = int(match.group(2))
             char_name = match.group(3)
-            result = {
-                "season": season,
-                "episode": episode,
-                "label": char_name
-            }
+            result = {"season": season, "episode": episode, "label": char_name}
             logger.debug(f"Matched SxxEyy_character pattern: {result}")
             return result
 
-        # Pattern 3: cluster_N (legacy format, e.g., cluster_123)
+        # Pattern 4: cluster_N (legacy format, e.g., cluster_123)
         # Captures: cluster number
         match = PATTERN_LEGACY_CLUSTER.match(sanitized)
         if match:
             cluster_num = int(match.group(1))
-            result = {
-                "cluster_number": cluster_num,
-                "label": f"cluster_{cluster_num}"
-            }
+            result = {"cluster_number": cluster_num, "label": f"cluster_{cluster_num}"}
             logger.debug(f"Matched legacy cluster pattern: {result}")
             return result
 
@@ -124,16 +153,16 @@ class EpisodeService:
         return result
 
     async def upload_episode(self, file: UploadFile) -> models.Episode:
-        if not file.filename.endswith('.zip'):
+        if not file.filename.endswith(".zip"):
             raise HTTPException(status_code=400, detail="Only ZIP files are supported")
 
-        episode_name = file.filename.replace('.zip', '')
+        episode_name = file.filename.replace(".zip", "")
         episode_path = self.upload_dir / episode_name
         episode_path.mkdir(exist_ok=True)
 
         logger.info(f"Uploading episode: {episode_name}")
 
-        with zipfile.ZipFile(file.file, 'r') as zip_ref:
+        with zipfile.ZipFile(file.file, "r") as zip_ref:
             zip_ref.extractall(episode_path)
 
         clusters = await self._parse_clusters(episode_path)
@@ -149,11 +178,15 @@ class EpisodeService:
             if parsed.get("season") is not None and parsed.get("episode") is not None:
                 episode_season = parsed.get("season")
                 episode_number = parsed.get("episode")
-                logger.info(f"Episode metadata from cluster '{cluster_data['name']}': season={episode_season}, episode={episode_number}")
+                logger.info(
+                    f"Episode metadata from cluster '{cluster_data['name']}': season={episode_season}, episode={episode_number}"
+                )
                 break  # Use first valid SxxEyy metadata found
 
         if episode_season is None and episode_number is None and clusters:
-            logger.info("No SxxEyy metadata found in clusters, episode will have season=None/episode_number=None")
+            logger.info(
+                "No SxxEyy metadata found in clusters, episode will have season=None/episode_number=None"
+            )
 
         # Create Episode record
         episode = models.Episode(
@@ -161,7 +194,7 @@ class EpisodeService:
             total_clusters=len(clusters),
             status="pending",
             season=episode_season,
-            episode_number=episode_number
+            episode_number=episode_number,
         )
         self.db.add(episode)
         # Use flush() instead of commit() to maintain atomicity (Gemini HIGH)
@@ -200,12 +233,14 @@ class EpisodeService:
                 cluster_name=cluster_data["name"],
                 image_paths=cluster_data["images"],  # Keep for backward compatibility
                 initial_label=parsed.get("label"),
-                cluster_number=parsed.get("cluster_number")
+                cluster_number=parsed.get("cluster_number"),
             )
             self.db.add(cluster)
             self.db.flush()  # Get cluster.id for Image records
 
-            logger.debug(f"Created Cluster: {cluster.cluster_name} (id={cluster.id}, label={parsed.get('label')})")
+            logger.debug(
+                f"Created Cluster: {cluster.cluster_name} (id={cluster.id}, label={parsed.get('label')})"
+            )
 
             # Prepare Image records for bulk insert
             for img_path in cluster_data["images"]:
@@ -215,7 +250,7 @@ class EpisodeService:
                     file_path=img_path,
                     filename=Path(img_path).name,
                     initial_label=parsed.get("label"),
-                    annotation_status="pending"
+                    annotation_status="pending",
                 )
                 images_to_create.append(image)
 
@@ -251,7 +286,7 @@ class EpisodeService:
             # Skip system/hidden directories (Codex P1)
             # ZIP archives from macOS contain __MACOSX with preview images (._*.jpg)
             # These would be imported as bogus clusters if not filtered
-            if cluster_dir.name.startswith('__') or cluster_dir.name.startswith('.'):
+            if cluster_dir.name.startswith("__") or cluster_dir.name.startswith("."):
                 logger.debug(f"Skipping system/hidden directory: {cluster_dir.name}")
                 continue
 
@@ -259,43 +294,119 @@ class EpisodeService:
             # More efficient than multiple glob() calls for each extension
             images = []
             for item in cluster_dir.iterdir():
-                if item.is_file() and item.suffix.lower() in {'.jpg', '.jpeg', '.png'}:
+                if item.is_file() and item.suffix.lower() in {".jpg", ".jpeg", ".png"}:
                     images.append(str(item.relative_to(self.upload_dir)))
 
             if images:
-                clusters.append({
-                    "name": cluster_dir.name,
-                    "images": images
-                })
-                logger.debug(f"Found cluster: {cluster_dir.name} with {len(images)} images")
+                clusters.append({"name": cluster_dir.name, "images": images})
+                logger.debug(
+                    f"Found cluster: {cluster_dir.name} with {len(images)} images"
+                )
             else:
                 logger.warning(f"Skipping empty cluster directory: {cluster_dir.name}")
 
         return clusters
 
     async def export_annotations(self, episode_id: str) -> Dict:
-        episode = self.db.query(models.Episode).filter(models.Episode.id == episode_id).first()
+        episode = (
+            self.db.query(models.Episode)
+            .filter(models.Episode.id == episode_id)
+            .first()
+        )
         if not episode:
             raise HTTPException(status_code=404, detail="Episode not found")
-        
-        clusters = self.db.query(models.Cluster).filter(models.Cluster.episode_id == episode_id).all()
-        
+
+        clusters = (
+            self.db.query(models.Cluster)
+            .filter(models.Cluster.episode_id == episode_id)
+            .all()
+        )
+
         annotations = {}
         split_annotations = {}
-        
+
         for cluster in clusters:
             if cluster.is_single_person and cluster.person_name:
                 annotations[cluster.cluster_name] = cluster.person_name
             elif not cluster.is_single_person:
-                splits = self.db.query(models.SplitAnnotation).filter(
-                    models.SplitAnnotation.cluster_id == cluster.id
-                ).all()
+                splits = (
+                    self.db.query(models.SplitAnnotation)
+                    .filter(models.SplitAnnotation.cluster_id == cluster.id)
+                    .all()
+                )
                 for split in splits:
                     split_annotations[split.scene_track_pattern] = split.person_name
-        
+
         return {
             "episode": episode.name,
             "single_person_clusters": annotations,
             "split_clusters": split_annotations,
-            "export_timestamp": episode.upload_timestamp.isoformat()
+            "export_timestamp": episode.upload_timestamp.isoformat(),
         }
+
+    async def get_episode_speakers(
+        self, episode_id: str
+    ) -> schemas.EpisodeSpeakersResponse:
+        """
+        Get speakers for an episode, sorted by utterance frequency.
+
+        Process:
+        1. Fetch episode metadata (season, episode_number)
+        2. Query episode_speakers table for matching season/episode
+        3. Sort by utterances DESC (most frequent speakers first)
+        4. Return speaker names only (title case)
+
+        Args:
+            episode_id: UUID of the episode
+
+        Returns:
+            EpisodeSpeakersResponse with episode info and speaker list
+
+        Raises:
+            HTTPException 404: If episode not found
+        """
+        # Fetch episode to get season/episode_number
+        episode = (
+            self.db.query(models.Episode)
+            .filter(models.Episode.id == episode_id)
+            .first()
+        )
+
+        if not episode:
+            raise HTTPException(status_code=404, detail="Episode not found")
+
+        # If episode has no season/episode metadata, return empty list
+        # (graceful degradation - user can still use custom input)
+        if episode.season is None or episode.episode_number is None:
+            logger.warning(
+                f"Episode {episode_id} has no season/episode metadata, "
+                "returning empty speaker list"
+            )
+            return schemas.EpisodeSpeakersResponse(
+                episode_id=episode.id,
+                season=episode.season,
+                episode_number=episode.episode_number,
+                speakers=[],
+            )
+
+        # Query speakers for this episode, sorted by frequency
+        speakers = (
+            self.db.query(models.EpisodeSpeaker)
+            .filter(
+                models.EpisodeSpeaker.season == episode.season,
+                models.EpisodeSpeaker.episode_number == episode.episode_number,
+            )
+            .order_by(models.EpisodeSpeaker.utterances.desc())
+            .all()
+        )
+
+        logger.info(
+            f"Found {len(speakers)} speakers for S{episode.season:02d}E{episode.episode_number:02d}"
+        )
+
+        return schemas.EpisodeSpeakersResponse(
+            episode_id=episode.id,
+            season=episode.season,
+            episode_number=episode.episode_number,
+            speakers=[s.speaker_name for s in speakers],
+        )

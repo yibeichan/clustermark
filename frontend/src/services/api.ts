@@ -10,6 +10,7 @@ import {
   ClusterAnnotateBatch,
   OutlierAnnotation,
   Image,
+  EpisodeSpeakersResponse,
 } from "../types";
 
 const API_BASE = "/api";
@@ -19,7 +20,7 @@ const api = axios.create({
 });
 
 export const episodeApi = {
-  list: () => api.get<Episode[]>("/episodes"),
+  list: () => api.get<Episode[]>("/episodes/"),
   get: (id: string) => api.get<Episode>(`/episodes/${id}`),
   getClusters: (id: string) => api.get<Cluster[]>(`/episodes/${id}/clusters`),
   upload: (file: File) => {
@@ -28,6 +29,10 @@ export const episodeApi = {
     return api.post<Episode>("/episodes/upload", formData);
   },
   export: (id: string) => api.get(`/episodes/${id}/export`),
+
+  // Phase 7: Get episode-specific speakers for dynamic dropdown
+  getSpeakers: (id: string) =>
+    api.get<EpisodeSpeakersResponse>(`/episodes/${id}/speakers`),
 };
 
 export const clusterApi = {

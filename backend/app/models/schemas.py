@@ -1,7 +1,8 @@
-from pydantic import BaseModel
-from typing import List, Optional
-from datetime import datetime
 import uuid
+from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel
 
 
 class EpisodeBase(BaseModel):
@@ -149,3 +150,18 @@ class OutlierImagesResponse(BaseModel):
     cluster_id: uuid.UUID
     outliers: List[Image]
     count: int
+
+
+# Phase 7: Episode speakers response schema
+class EpisodeSpeakersResponse(BaseModel):
+    """
+    Response for GET /episodes/{episode_id}/speakers endpoint.
+
+    Returns speakers for a specific episode, sorted by utterance frequency.
+    Used to populate episode-specific dropdown options during annotation.
+    """
+
+    episode_id: uuid.UUID
+    season: Optional[int] = None
+    episode_number: Optional[int] = None
+    speakers: List[str]  # Speaker names in title case, sorted by frequency (desc)

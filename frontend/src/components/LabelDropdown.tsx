@@ -1,19 +1,21 @@
 import { useState, useEffect } from "react";
 
-const FRIENDS_CHARACTERS = [
+// Default fallback characters (used when no speakers provided)
+const DEFAULT_CHARACTERS = [
   "Chandler",
   "Joey",
   "Monica",
   "Rachel",
   "Ross",
   "Phoebe",
-] as const;
+];
 
 interface LabelDropdownProps {
   value?: string;
   onChange: (label: string, isCustom: boolean) => void;
   disabled?: boolean;
   placeholder?: string;
+  speakers?: string[]; // Phase 7: Dynamic speaker list from episode data
 }
 
 export default function LabelDropdown({
@@ -21,16 +23,22 @@ export default function LabelDropdown({
   onChange,
   disabled = false,
   placeholder = "Select character...",
+  speakers = DEFAULT_CHARACTERS, // Fallback to default if not provided
 }: LabelDropdownProps) {
   const [selectedOption, setSelectedOption] = useState<string>("");
   const [customLabel, setCustomLabel] = useState<string>("");
   const [showCustomInput, setShowCustomInput] = useState(false);
 
   // Gemini HIGH + Codex P1: Handle value prop changes including resets
+  // Phase 7: Use dynamic speakers list for matching (case-insensitive)
   useEffect(() => {
     if (value) {
-      if ((FRIENDS_CHARACTERS as readonly string[]).includes(value)) {
-        setSelectedOption(value);
+      // Case-insensitive match against speakers list
+      const matchedSpeaker = speakers.find(
+        (s) => s.toLowerCase() === value.toLowerCase(),
+      );
+      if (matchedSpeaker) {
+        setSelectedOption(matchedSpeaker);
         setShowCustomInput(false);
         setCustomLabel("");
       } else {
@@ -102,9 +110,9 @@ export default function LabelDropdown({
         }}
       >
         <option value="">{placeholder}</option>
-        {FRIENDS_CHARACTERS.map((char) => (
-          <option key={char} value={char}>
-            {char}
+        {speakers.map((speaker) => (
+          <option key={speaker} value={speaker}>
+            {speaker}
           </option>
         ))}
         <option value="Other">Other</option>

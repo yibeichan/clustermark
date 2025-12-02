@@ -11,13 +11,72 @@ Tests cover:
 - Mixed format handling
 """
 
+from unittest.mock import Mock
+
 import pytest
 from app.services.episode_service import EpisodeService
-from unittest.mock import Mock
 
 
 class TestFolderNameParsing:
     """Test folder name parsing with various formats."""
+
+    def test_parse_friends_format_with_suffix_a(self):
+        """
+        Test parsing friends_s01e01a_cluster-XXX format.
+
+        Expected: season=1, episode=1, cluster=730, label="cluster-730"
+        Suffix 'a' should be ignored.
+        """
+        service = EpisodeService(Mock())
+        result = service._parse_folder_name("friends_s01e01a_cluster-730")
+
+        assert result["season"] == 1
+        assert result["episode"] == 1
+        assert result["cluster_number"] == 730
+        assert result["label"] == "cluster-730"
+
+    def test_parse_friends_format_with_suffix_b(self):
+        """
+        Test parsing friends_s01e01b_cluster-XXX format.
+
+        Expected: season=1, episode=1, cluster=436, label="cluster-436"
+        Suffix 'b' should be ignored - maps to same episode as 'a'.
+        """
+        service = EpisodeService(Mock())
+        result = service._parse_folder_name("friends_s01e01b_cluster-436")
+
+        assert result["season"] == 1
+        assert result["episode"] == 1
+        assert result["cluster_number"] == 436
+        assert result["label"] == "cluster-436"
+
+    def test_parse_friends_format_without_prefix(self):
+        """
+        Test parsing s01e01a_cluster-XXX format (no 'friends_' prefix).
+
+        Expected: season=1, episode=1, cluster=25, label="cluster-25"
+        """
+        service = EpisodeService(Mock())
+        result = service._parse_folder_name("s01e01a_cluster-25")
+
+        assert result["season"] == 1
+        assert result["episode"] == 1
+        assert result["cluster_number"] == 25
+        assert result["label"] == "cluster-25"
+
+    def test_parse_friends_format_uppercase(self):
+        """
+        Test parsing FRIENDS_S01E01A_CLUSTER-XXX format (case-insensitive).
+
+        Expected: season=1, episode=1, cluster=100, label="cluster-100"
+        """
+        service = EpisodeService(Mock())
+        result = service._parse_folder_name("FRIENDS_S01E01A_CLUSTER-100")
+
+        assert result["season"] == 1
+        assert result["episode"] == 1
+        assert result["cluster_number"] == 100
+        assert result["label"] == "cluster-100"
 
     def test_parse_sxxeyy_cluster(self):
         """
