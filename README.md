@@ -100,26 +100,68 @@ The workflow:
 **JSON format:**
 ```json
 {
-  "episode_name": "Friends_S01E05",
-  "season": 1,
-  "episode": 5,
-  "annotations": {
+  "metadata": {
+    "episode_id": "friends_s01e05",
+    "season": 1,
+    "episode": 5,
+    "clustering_file": "friends_s01e05_matched_faces_with_clusters.json",
+    "model_name": "vggface2",
+    "annotation_date": "2025-12-02T10:30:00Z",
+    "annotator_id": "user_01"
+  },
+  "cluster_annotations": {
     "cluster-01": {
-      "label": "Rachel",
+      "label": "rachel",
+      "confidence": "high",
       "image_count": 20,
+      "image_paths": [
+        "friends_s01e05/friends_s01e05_cluster-01/scene_0_track_1_frame_001.jpg",
+        "friends_s01e05/friends_s01e05_cluster-01/scene_0_track_1_frame_015.jpg",
+        "...more image paths..."
+      ],
       "outliers": []
     },
     "cluster-02": {
-      "label": "Monica",
-      "image_count": 18,
+      "label": "monica",
+      "confidence": "medium",
+      "image_count": 16,
+      "image_paths": [
+        "friends_s01e05/friends_s01e05_cluster-02/scene_1_track_1_frame_020.jpg",
+        "friends_s01e05/friends_s01e05_cluster-02/scene_1_track_1_frame_035.jpg",
+        "...more image paths..."
+      ],
       "outliers": [
-        {"image": "scene_0_track_1_frame_001.jpg", "label": "Chandler"},
-        {"image": "scene_0_track_1_frame_015.jpg", "label": "Chandler"}
+        {
+          "image_path": "friends_s01e05/friends_s01e05_cluster-02/scene_0_track_1_frame_001.jpg",
+          "label": "chandler"
+        },
+        {
+          "image_path": "friends_s01e05/friends_s01e05_cluster-02/scene_0_track_1_frame_015.jpg",
+          "label": "chandler"
+        }
       ]
+    }
+  },
+  "statistics": {
+    "total_clusters": 15,
+    "annotated_clusters": 2,
+    "total_faces": 38,
+    "outliers_found": 2,
+    "not_human_clusters": 0,
+    "character_distribution": {
+      "rachel": 20,
+      "monica": 16,
+      "chandler": 2
     }
   }
 }
 ```
+
+**Export includes:**
+- **metadata**: Episode info, annotation date, model name
+- **cluster_annotations**: Per-cluster labels with full image paths and outlier details
+- **statistics**: Aggregated counts and character distribution
+- **confidence**: Auto-calculated based on outlier ratio (high: 0%, medium: <20%, low: ≥20%)
 
 ---
 
