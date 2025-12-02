@@ -9,7 +9,6 @@ Test-Driven Development approach:
 """
 
 import uuid
-from datetime import datetime
 
 import pytest
 from app.models import models
@@ -236,11 +235,11 @@ class TestExportAnnotationsFormat:
         cluster1 = result["cluster_annotations"]["cluster-01"]
         first_path = cluster1["image_paths"][0]
 
-        # Should be: friends_s01e05/s01e05_cluster-01/scene_0_track_1_frame_000.jpg
-        # (episode folder is lowercased, cluster folder is lowercased as-is from upload structure)
-        assert first_path.startswith("friends_s01e05/")
-        assert "s01e05_cluster-01" in first_path.lower()
-        assert not first_path.startswith("uploads/")  # No uploads/ prefix
+        # Assert exact expected path for robust validation
+        assert (
+            first_path
+            == "friends_s01e05/s01e05_cluster-01/scene_0_track_1_frame_000.jpg"
+        )
 
 
 class TestExportAnnotationsEdgeCases:

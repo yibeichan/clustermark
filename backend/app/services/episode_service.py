@@ -1,6 +1,7 @@
 import logging
 import re
 import zipfile
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List
 
@@ -10,6 +11,13 @@ from sqlalchemy.orm import Session
 from app.models import models, schemas
 
 logger = logging.getLogger(__name__)
+
+# Export format default values (configurable)
+DEFAULT_MODEL_NAME = "vggface2"
+DEFAULT_ANNOTATOR_ID = "user_01"
+
+# Confidence thresholds for outlier ratio
+MEDIUM_CONFIDENCE_OUTLIER_RATIO_THRESHOLD = 0.2
 
 # Pre-compiled regex patterns for performance (Gemini HIGH priority)
 # Compiling at module level prevents redundant compilation on every parse call
@@ -353,19 +361,25 @@ class EpisodeService:
         if not episode_name_lower.startswith("friends_"):
             episode_name_lower = f"friends_{episode_name_lower}"
 
+        # Format annotation_date properly for timezone-aware timestamps
+        annotation_date = episode.upload_timestamp.isoformat()
+        if episode.upload_timestamp.tzinfo is None:
+            # Only add Z if timestamp is naive (no timezone)
+            annotation_date += "Z"
+
         metadata = {
             "episode_id": episode_name_lower,
             "season": episode.season if episode.season else None,
             "episode": episode.episode_number if episode.episode_number else None,
             "clustering_file": f"{episode_name_lower}_matched_faces_with_clusters.json",
-            "model_name": "vggface2",  # Default, could be made configurable
-            "annotation_date": episode.upload_timestamp.isoformat() + "Z",
-            "annotator_id": "user_01",  # Default, could be made configurable
+            "model_name": DEFAULT_MODEL_NAME,
+            "annotation_date": annotation_date,
+            "annotator_id": DEFAULT_ANNOTATOR_ID,
         }
 
         # Build cluster annotations and statistics
         cluster_annotations = {}
-        character_distribution = {}
+        character_distribution = defaultdict(int)
         total_faces = 0
         outliers_found = 0
         annotated_clusters = 0
@@ -410,7 +424,7 @@ class EpisodeService:
 
             if outlier_ratio == 0:
                 confidence = "high"
-            elif outlier_ratio < 0.2:
+            elif outlier_ratio < MEDIUM_CONFIDENCE_OUTLIER_RATIO_THRESHOLD:
                 confidence = "medium"
             else:
                 confidence = "low"
@@ -435,16 +449,10 @@ class EpisodeService:
                     )
                     outliers_found += 1
 
-            # Update character distribution
-            if cluster_label not in character_distribution:
-                character_distribution[cluster_label] = 0
+            # Update character distribution (defaultdict simplifies this)
             character_distribution[cluster_label] += len(main_images)
-
             for outlier in outliers:
-                outlier_label = outlier["label"]
-                if outlier_label not in character_distribution:
-                    character_distribution[outlier_label] = 0
-                character_distribution[outlier_label] += 1
+                character_distribution[outlier["label"]] += 1
 
             total_faces += total_images_in_cluster
 
@@ -480,23 +488,23 @@ class EpisodeService:
         Converts:
             uploads/Friends_S01E05/S01E05_cluster-01/scene_0_track_1_frame_001.jpg
         To:
-            friends_s01e05/friends_s01e05_cluster-01/scene_0_track_1_frame_001.jpg
+            friends_s01e05/s01e05_cluster-01/scene_0_track_1_frame_001.jpg
 
+        Handles paths of any depth by lowercasing the entire relative path.
         Returns empty string if path is invalid.
         """
         if not file_path:
             return ""
 
-        # Remove 'uploads/' prefix and split into parts
-        path_without_uploads = file_path.replace("uploads/", "")
-        path_parts = path_without_uploads.split("/")
+        # Remove 'uploads/' prefix (only first occurrence)
+        path_without_uploads = file_path.replace("uploads/", "", 1)
 
         # Expect at least 3 parts: episode_folder/cluster_folder/filename
-        if len(path_parts) < 3:
+        if len(path_without_uploads.split("/")) < 3:
             return ""
 
-        # Convert to lowercase and join
-        return f"{path_parts[0].lower()}/{path_parts[1].lower()}/{path_parts[2]}"
+        # Convert the whole relative path to lowercase to handle any depth
+        return path_without_uploads.lower()
 
     async def get_episode_speakers(
         self, episode_id: str
