@@ -308,14 +308,6 @@ class EpisodeService:
         return clusters
 
     async def export_annotations(self, episode_id: str) -> Dict:
-        """
-        Export annotations in detailed format with image-level labels.
-
-        Returns format matching clustering pipeline expectations:
-        - metadata: episode info, annotation metadata
-        - cluster_annotations: per-cluster labels with image paths and outliers
-        - statistics: aggregated counts and distribution
-        """
         episode = (
             self.db.query(models.Episode)
             .filter(models.Episode.id == episode_id)
@@ -330,141 +322,26 @@ class EpisodeService:
             .all()
         )
 
-        # Build metadata
-        episode_id_str = episode.name.lower().replace("_", "_").replace(" ", "_")
-        if not episode_id_str.startswith("friends_"):
-            episode_id_str = f"friends_{episode_id_str}"
-
-        metadata = {
-            "episode_id": episode_id_str,
-            "season": episode.season if episode.season else None,
-            "episode": episode.episode_number if episode.episode_number else None,
-            "clustering_file": f"{episode_id_str}_matched_faces_with_clusters.json",
-            "model_name": "vggface2",  # Default, could be made configurable
-            "annotation_date": episode.upload_timestamp.isoformat() + "Z",
-            "annotator_id": "user_01",  # Default, could be made configurable
-        }
-
-        # Build cluster annotations
-        cluster_annotations = {}
-        character_distribution = {}
-        total_faces = 0
-        outliers_found = 0
-        annotated_clusters = 0
-        not_human_clusters = 0
+        annotations = {}
+        split_annotations = {}
 
         for cluster in clusters:
-            # Only include annotated clusters
-            if cluster.annotation_status != "completed":
-                continue
-
-            annotated_clusters += 1
-
-            # Get all images for this cluster
-            images = (
-                self.db.query(models.Image)
-                .filter(models.Image.cluster_id == cluster.id)
-                .filter(models.Image.annotation_status == "annotated")
-                .all()
-            )
-
-            if not images:
-                continue
-
-            # Separate outliers from main cluster images
-            outlier_images = [
-                img
-                for img in images
-                if img.initial_label and img.current_label != cluster.person_name
-            ]
-            main_images = [img for img in images if img not in outlier_images]
-
-            # Determine cluster label (from cluster.person_name or most common label)
-            cluster_label = cluster.person_name if cluster.person_name else "unlabeled"
-            cluster_label = cluster_label.lower()
-
-            # Track not_human clusters
-            if cluster_label == "not_human":
-                not_human_clusters += 1
-
-            # Calculate confidence based on outlier ratio
-            total_images_in_cluster = len(main_images) + len(outlier_images)
-            outlier_ratio = (
-                len(outlier_images) / total_images_in_cluster
-                if total_images_in_cluster > 0
-                else 0
-            )
-
-            if outlier_ratio == 0:
-                confidence = "high"
-            elif outlier_ratio < 0.2:
-                confidence = "medium"
-            else:
-                confidence = "low"
-
-            # Build image paths (relative to episode folder)
-            image_paths = []
-            for img in main_images:
-                # Convert file_path to relative format
-                # uploads/Friends_S01E05/S01E05_cluster-01/scene_0_track_1_frame_001.jpg
-                # -> friends_s01e05/friends_s01e05_cluster-01/scene_0_track_1_frame_001.jpg
-                path_parts = img.file_path.replace("uploads/", "").split("/")
-                if len(path_parts) >= 3:
-                    relative_path = f"{path_parts[0].lower()}/{path_parts[1].lower()}/{path_parts[2]}"
-                    image_paths.append(relative_path)
-
-            # Build outliers list
-            outliers = []
-            for img in outlier_images:
-                path_parts = img.file_path.replace("uploads/", "").split("/")
-                if len(path_parts) >= 3:
-                    relative_path = f"{path_parts[0].lower()}/{path_parts[1].lower()}/{path_parts[2]}"
-                    outliers.append(
-                        {
-                            "image_path": relative_path,
-                            "label": img.current_label.lower()
-                            if img.current_label
-                            else "unlabeled",
-                        }
-                    )
-                    outliers_found += 1
-
-            # Update character distribution
-            if cluster_label not in character_distribution:
-                character_distribution[cluster_label] = 0
-            character_distribution[cluster_label] += len(main_images)
-
-            for outlier in outliers:
-                outlier_label = outlier["label"]
-                if outlier_label not in character_distribution:
-                    character_distribution[outlier_label] = 0
-                character_distribution[outlier_label] += 1
-
-            total_faces += total_images_in_cluster
-
-            # Add to cluster_annotations
-            cluster_annotations[cluster.cluster_name] = {
-                "label": cluster_label,
-                "confidence": confidence,
-                "image_count": len(main_images),
-                "image_paths": image_paths,
-                "outliers": outliers,
-            }
-
-        # Build statistics
-        statistics = {
-            "total_clusters": len(clusters),
-            "annotated_clusters": annotated_clusters,
-            "total_faces": total_faces,
-            "outliers_found": outliers_found,
-            "not_human_clusters": not_human_clusters,
-            "character_distribution": character_distribution,
-        }
+            if cluster.is_single_person and cluster.person_name:
+                annotations[cluster.cluster_name] = cluster.person_name
+            elif not cluster.is_single_person:
+                splits = (
+                    self.db.query(models.SplitAnnotation)
+                    .filter(models.SplitAnnotation.cluster_id == cluster.id)
+                    .all()
+                )
+                for split in splits:
+                    split_annotations[split.scene_track_pattern] = split.person_name
 
         return {
-            "metadata": metadata,
-            "cluster_annotations": cluster_annotations,
-            "statistics": statistics,
+            "episode": episode.name,
+            "single_person_clusters": annotations,
+            "split_clusters": split_annotations,
+            "export_timestamp": episode.upload_timestamp.isoformat(),
         }
 
     async def get_episode_speakers(
