@@ -1,5 +1,6 @@
 import logging
 import re
+import shutil
 import zipfile
 from collections import defaultdict
 from pathlib import Path
@@ -165,6 +166,23 @@ class EpisodeService:
             raise HTTPException(status_code=400, detail="Only ZIP files are supported")
 
         episode_name = file.filename.replace(".zip", "")
+
+        # Check for duplicate episode (case-insensitive)
+        existing = (
+            self.db.query(models.Episode)
+            .filter(models.Episode.name.ilike(episode_name))
+            .first()
+        )
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": f"Episode '{existing.name}' already exists",
+                    "existing_id": str(existing.id),
+                    "has_annotations": existing.annotated_clusters > 0,
+                },
+            )
+
         episode_path = self.upload_dir / episode_name
         episode_path.mkdir(exist_ok=True)
 
@@ -624,3 +642,64 @@ class EpisodeService:
             episode_number=episode.episode_number,
             speakers=[s.speaker_name for s in speakers],
         )
+
+    async def delete_episode(self, episode_id: str) -> None:
+        """
+        Delete an episode and all associated data.
+
+        Deletes files FIRST (safer order), then database records.
+        SQLAlchemy cascade will handle Cluster -> Image deletion.
+
+        Args:
+            episode_id: UUID of the episode to delete
+
+        Raises:
+            HTTPException 404: If episode not found
+            HTTPException 500: If file deletion fails
+        """
+        episode = (
+            self.db.query(models.Episode)
+            .filter(models.Episode.id == episode_id)
+            .first()
+        )
+
+        if not episode:
+            raise HTTPException(status_code=404, detail="Episode not found")
+
+        # Delete files first (safer: if this fails, DB is still intact)
+        episode_path = self.upload_dir / episode.name
+        if episode_path.exists():
+            try:
+                shutil.rmtree(episode_path)
+                logger.info(f"Deleted files for episode: {episode.name}")
+            except OSError as e:
+                logger.error(f"Failed to delete files for episode {episode.name}: {e}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to delete episode files: {e}",
+                )
+
+        # Delete database record (cascade handles clusters and images)
+        self.db.delete(episode)
+        self.db.commit()
+        logger.info(f"Deleted episode from database: {episode.name}")
+
+    async def replace_episode(self, episode_id: str, file: UploadFile) -> models.Episode:
+        """
+        Replace an existing episode with a new upload.
+
+        Deletes the existing episode first, then uploads the new one.
+
+        Args:
+            episode_id: UUID of the episode to replace
+            file: New ZIP file to upload
+
+        Returns:
+            The newly created Episode object
+        """
+        # Delete existing episode
+        await self.delete_episode(episode_id)
+
+        # Upload new episode (duplicate check will pass since we just deleted)
+        return await self.upload_episode(file)
+

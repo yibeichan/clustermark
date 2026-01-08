@@ -33,6 +33,14 @@ export const episodeApi = {
   // Phase 7: Get episode-specific speakers for dynamic dropdown
   getSpeakers: (id: string) =>
     api.get<EpisodeSpeakersResponse>(`/episodes/${id}/speakers`),
+
+  // Episode management: delete and replace
+  delete: (id: string) => api.delete(`/episodes/${id}`),
+  replace: (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.post<Episode>(`/episodes/${id}/replace`, formData);
+  },
 };
 
 export const clusterApi = {
