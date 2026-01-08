@@ -658,12 +658,13 @@ class EpisodeService:
         Deletes the database record FIRST, then the associated files.
         SQLAlchemy cascade will handle Cluster -> Image deletion.
 
+        If file deletion fails, the error is logged but the request does not fail.
+
         Args:
             episode_id: UUID of the episode to delete
 
         Raises:
             HTTPException 404: If episode not found
-            HTTPException 500: If file deletion fails
         """
         episode = (
             self.db.query(models.Episode)

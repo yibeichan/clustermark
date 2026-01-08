@@ -100,9 +100,10 @@ export default function HomePage() {
   const handleRename = async () => {
     if (!duplicateInfo) return;
 
-    // Create a new file with _v2 suffix
+    // Create a new file with unique suffix (timestamp) to avoid collisions
     const originalName = duplicateInfo.file.name.replace('.zip', '');
-    const newName = `${originalName}_v2.zip`;
+    const timestamp = new Date().getTime();
+    const newName = `${originalName}_v${timestamp}.zip`;
     const renamedFile = new File([duplicateInfo.file], newName, {
       type: duplicateInfo.file.type,
     });
