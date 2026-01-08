@@ -64,3 +64,33 @@ async def get_episode_speakers(episode_id: str, db: Session = Depends(get_db)):
     """
     service = EpisodeService(db)
     return await service.get_episode_speakers(episode_id)
+
+
+@router.delete("/{episode_id}", status_code=204)
+async def delete_episode(episode_id: str, db: Session = Depends(get_db)):
+    """
+    Delete an episode and all associated data.
+
+    This permanently removes:
+    - The episode record
+    - All cluster records
+    - All image records
+    - All uploaded files
+    """
+    service = EpisodeService(db)
+    await service.delete_episode(episode_id)
+    return None
+
+
+@router.post("/{episode_id}/replace", response_model=schemas.Episode)
+async def replace_episode(
+    episode_id: str, file: UploadFile = File(...), db: Session = Depends(get_db)
+):
+    """
+    Replace an existing episode with a new upload.
+
+    Deletes all existing data for this episode, then uploads the new ZIP.
+    """
+    service = EpisodeService(db)
+    return await service.replace_episode(episode_id, file)
+
