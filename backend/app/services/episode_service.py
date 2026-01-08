@@ -165,7 +165,7 @@ class EpisodeService:
         if not file.filename.endswith(".zip"):
             raise HTTPException(status_code=400, detail="Only ZIP files are supported")
 
-        episode_name = file.filename.replace(".zip", "")
+
         # CRITICAL FIX: Sanitize filename to prevent path traversal
         raw_filename = Path(file.filename).name
         episode_name = raw_filename.replace(".zip", "")
@@ -350,7 +350,7 @@ class EpisodeService:
         - cluster_annotations: per-cluster labels with image paths and outliers
         - statistics: aggregated counts and distribution
         """
-        from collections import defaultdict
+
 
         # Fetch episode
         episode = (
@@ -655,7 +655,7 @@ class EpisodeService:
         """
         Delete an episode and all associated data.
 
-        Deletes files FIRST (safer order), then database records.
+        Deletes the database record FIRST, then the associated files.
         SQLAlchemy cascade will handle Cluster -> Image deletion.
 
         Args:
@@ -705,6 +705,17 @@ class EpisodeService:
         Returns:
             The newly created Episode object
         """
+        # Safety check: Verify new file is a valid ZIP *before* deleting the old one
+        if not file.filename.endswith(".zip"):
+            raise HTTPException(status_code=400, detail="Only ZIP files are supported")
+
+        # Check if actual content is a valid ZIP
+        if not zipfile.is_zipfile(file.file):
+            raise HTTPException(status_code=400, detail="Invalid ZIP file content")
+        
+        # Reset file pointer after check so upload_episode can read it
+        file.file.seek(0)
+
         # Delete existing episode
         await self.delete_episode(episode_id)
 
