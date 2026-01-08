@@ -153,7 +153,7 @@ export default function HomePage() {
               Replace
             </button>
             <button type="button" onClick={handleRename}>
-              Rename to _v2
+              Upload as New Version
             </button>
             <button type="button" onClick={() => setDuplicateInfo(null)}>
               Cancel
