@@ -137,25 +137,25 @@ export default function HomePage() {
     <div>
       {/* Duplicate Dialog */}
       {duplicateInfo && (
-        <div className="card" style={{ backgroundColor: '#fff3cd', borderColor: '#ffc107' }}>
+        <div className="card card-warning">
           <h3>Episode Already Exists</h3>
           <p>
             {duplicateInfo.hasAnnotations
               ? 'This episode has annotations. What would you like to do?'
               : 'An episode with this name already exists.'}
           </p>
-          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+          <div className="button-group">
             <button
               type="button"
+              className="button button-danger"
               onClick={handleReplace}
-              style={{ backgroundColor: '#dc3545', color: 'white' }}
             >
               Replace
             </button>
-            <button type="button" onClick={handleRename}>
+            <button type="button" className="button" onClick={handleRename}>
               Upload as New Version
             </button>
-            <button type="button" onClick={() => setDuplicateInfo(null)}>
+            <button type="button" className="button button-secondary" onClick={() => setDuplicateInfo(null)}>
               Cancel
             </button>
           </div>
@@ -166,13 +166,7 @@ export default function HomePage() {
         <h2>Upload Episode</h2>
         <div
           {...getRootProps()}
-          style={{
-            border: '2px dashed #ccc',
-            padding: '40px',
-            textAlign: 'center',
-            cursor: 'pointer',
-            backgroundColor: isDragActive ? '#f0f0f0' : 'white'
-          }}
+          className={`dropzone ${isDragActive ? 'active' : ''}`}
         >
           <input {...getInputProps()} />
           {uploading ? (
@@ -204,14 +198,9 @@ export default function HomePage() {
                 <p>Uploaded: {new Date(episode.upload_timestamp).toLocaleDateString()}</p>
                 <button
                   type="button"
+                  className="button button-danger button-sm"
                   onClick={() => handleDelete(episode)}
                   disabled={deleting === episode.id}
-                  style={{
-                    backgroundColor: '#dc3545',
-                    color: 'white',
-                    marginTop: '10px',
-                    cursor: deleting === episode.id ? 'not-allowed' : 'pointer',
-                  }}
                 >
                   {deleting === episode.id ? 'Deleting...' : 'Delete'}
                 </button>
