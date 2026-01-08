@@ -166,6 +166,14 @@ class EpisodeService:
             raise HTTPException(status_code=400, detail="Only ZIP files are supported")
 
         episode_name = file.filename.replace(".zip", "")
+        # CRITICAL FIX: Sanitize filename to prevent path traversal
+        raw_filename = Path(file.filename).name
+        episode_name = raw_filename.replace(".zip", "")
+        # Further sanitize using existing helper
+        episode_name = self._sanitize_folder_name(episode_name)
+
+        if not episode_name or episode_name == ".":
+            raise HTTPException(status_code=400, detail="Invalid episode name")
 
         # Check for duplicate episode (case-insensitive)
         existing = (
@@ -666,23 +674,23 @@ class EpisodeService:
         if not episode:
             raise HTTPException(status_code=404, detail="Episode not found")
 
-        # Delete files first (safer: if this fails, DB is still intact)
-        episode_path = self.upload_dir / episode.name
+        episode_name = episode.name
+
+        # CRITICAL FIX: Delete DB record first to prevent "zombie" state
+        self.db.delete(episode)
+        self.db.commit()
+        logger.info(f"Deleted episode from database: {episode_name}")
+
+        # Delete files second
+        # If this fails, we have orphaned files but a clean UI/DB
+        episode_path = self.upload_dir / episode_name
         if episode_path.exists():
             try:
                 shutil.rmtree(episode_path)
                 logger.info(f"Deleted files for episode: {episode.name}")
             except OSError as e:
-                logger.error(f"Failed to delete files for episode {episode.name}: {e}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to delete episode files: {e}",
-                )
-
-        # Delete database record (cascade handles clusters and images)
-        self.db.delete(episode)
-        self.db.commit()
-        logger.info(f"Deleted episode from database: {episode.name}")
+                # Log error but don't fail the request (DB already clean)
+                logger.error(f"Failed to delete files for episode {episode.name} after DB delete: {e}")
 
     async def replace_episode(self, episode_id: str, file: UploadFile) -> models.Episode:
         """
