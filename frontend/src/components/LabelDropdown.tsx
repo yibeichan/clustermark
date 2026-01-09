@@ -101,13 +101,7 @@ export default function LabelDropdown({
         value={selectedOption}
         onChange={handleDropdownChange}
         disabled={disabled}
-        style={{
-          padding: "8px 12px",
-          fontSize: "14px",
-          minWidth: "150px",
-          borderRadius: "4px",
-          border: "1px solid #ccc",
-        }}
+        className="form-select"
       >
         <option value="">{placeholder}</option>
         {speakers.map((speaker) => (
@@ -128,13 +122,7 @@ export default function LabelDropdown({
           placeholder="Enter name (e.g., Gunther, Janice)"
           disabled={disabled}
           autoFocus
-          style={{
-            padding: "8px 12px",
-            fontSize: "14px",
-            minWidth: "250px",
-            borderRadius: "4px",
-            border: "1px solid #ccc",
-          }}
+          className="form-input"
         />
       )}
     </div>
