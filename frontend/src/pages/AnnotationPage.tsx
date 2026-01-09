@@ -394,8 +394,18 @@ export default function AnnotationPage() {
         >
           &larr; Back to Episode
         </button>
-        <h2>Annotate {cluster.cluster_name}</h2>
-        {cluster.initial_label && <p>Initial label: {cluster.initial_label}</p>}
+        <div className="annotation-header">
+          <h2>
+            {cluster.annotation_status === "annotated" ? "Edit" : "Annotate"}{" "}
+            {cluster.cluster_name}
+          </h2>
+          {cluster.annotation_status === "annotated" && (
+            <span className="edit-badge">Editing existing annotation</span>
+          )}
+        </div>
+        {cluster.initial_label && (
+          <p className="mt-8">Initial label: {cluster.initial_label}</p>
+        )}
       </div>
 
       {error && (
