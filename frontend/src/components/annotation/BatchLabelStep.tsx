@@ -35,11 +35,11 @@ export default function BatchLabelStep({
 }: BatchLabelStepProps) {
   return (
     <div className="card">
-      <h3>{title}</h3>
+      <h3 className="mb-16">{title}</h3>
       <p>
         {description} {imageCount} images:
       </p>
-      <div className="batch-label-section">
+      <div className="batch-label-section mt-12 mb-20">
         <LabelDropdown
           value={label}
           onChange={onLabelChange}
@@ -48,7 +48,7 @@ export default function BatchLabelStep({
         />
       </div>
       <button
-        className="button"
+        className="button mt-24"
         onClick={onSubmit}
         disabled={!label.trim() || disabled}
       >

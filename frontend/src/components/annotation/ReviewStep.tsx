@@ -42,7 +42,7 @@ export default function ReviewStep({
 }: ReviewStepProps) {
   return (
     <div className="card">
-      <h3>Step 1: Review Images</h3>
+      <h3 className="mb-16">Step 1: Review Images</h3>
       <p>
         Click images that don't belong (outliers). When done, click Continue.
       </p>
@@ -99,7 +99,7 @@ export default function ReviewStep({
       </div>
 
       {/* Pagination controls */}
-      <div className="pagination-controls">
+      <div className="pagination-controls mt-16">
         <button
           className="button"
           onClick={() => onPageChange(currentPage - 1)}
@@ -120,7 +120,7 @@ export default function ReviewStep({
       </div>
 
       {/* Continue button */}
-      <div className="continue-section">
+      <div className="continue-section mt-24">
         <p>
           {selectedOutliers.size === 0
             ? "No outliers selected. Will batch label all images."

@@ -1,7 +1,9 @@
 # Project documentation (contains sensitive planning info)
-# CLAUDE.md
+CLAUDE.md
 .claude/
-docs/*
+docs/internal/
+docs/plans/
+docs/research/
 # Python
 __pycache__/
 *.py[cod]
