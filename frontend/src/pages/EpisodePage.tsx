@@ -116,7 +116,12 @@ export default function EpisodePage() {
                 <div key={cluster.id} className="card">
                   <h4>{cluster.cluster_name}</h4>
                   <div className="annotated-actions mt-8">
-                    <span className="status-complete">✓ Completed</span>
+                    {cluster.annotation_status === 'outlier' ? (
+                      <span className="status-complete" style={{ color: '#17a2b8' }}>ℹ Outlier</span>
+                    ) : (
+                      <span className="status-complete">✓ Completed</span>
+                    )}
+
                     {cluster.person_name && (
                       <span className="person-label">{cluster.person_name}</span>
                     )}

@@ -41,4 +41,19 @@ describe('sortClusters', () => {
 
         expect(mockClusters).toEqual(originalOrder);
     });
+
+    it('should treat outlier status as non-pending and sort accordingly', () => {
+        const mockClusters = [
+            { id: '1', cluster_name: 'Cluster 1', annotation_status: 'outlier' },
+            { id: '2', cluster_name: 'Cluster 2', annotation_status: 'pending' },
+            { id: '3', cluster_name: 'Cluster 3', annotation_status: 'annotated' },
+        ] as Cluster[];
+
+        const sorted = sortClusters(mockClusters);
+
+        expect(sorted[0].id).toBe('2'); // Pending first
+        // Annotated and Outlier are both "completed" so sort by name
+        expect(sorted[1].id).toBe('1'); // Cluster 1 (outlier)
+        expect(sorted[2].id).toBe('3'); // Cluster 3 (annotated)
+    });
 });

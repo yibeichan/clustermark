@@ -13,7 +13,8 @@ export const sortClusters = (clusters: Cluster[]): Cluster[] => {
         if (a.annotation_status !== 'pending' && b.annotation_status === 'pending') {
             return 1;
         }
-        // Within same status, sort by cluster name
+        // Within same status (both pending, or both non-pending), sort by cluster name
+        // This effectively groups annotated and outliers together, sorted alphabetically
         return a.cluster_name.localeCompare(b.cluster_name, undefined, { numeric: true });
     });
 };
