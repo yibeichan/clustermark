@@ -33,7 +33,7 @@ export default function EpisodePage() {
 
   const handleExport = async () => {
     if (!episodeId) return;
-    
+
     try {
       const response = await episodeApi.export(episodeId);
       const blob = new Blob([JSON.stringify(response.data, null, 2)], {
@@ -69,8 +69,8 @@ export default function EpisodePage() {
         <h2>{episode.name}</h2>
         <p>Status: {episode.status}</p>
         <p>Progress: {episode.annotated_clusters} / {episode.total_clusters} clusters</p>
-        <button 
-          className="button" 
+        <button
+          className="button"
           onClick={handleExport}
           disabled={episode.annotated_clusters === 0}
         >
@@ -90,7 +90,7 @@ export default function EpisodePage() {
                 <p>Person: {cluster.person_name}</p>
               )}
               {cluster.annotation_status === 'pending' ? (
-                <Link 
+                <Link
                   to={`/annotate/${cluster.id}`}
                   className="button"
                   style={{ textDecoration: 'none', display: 'inline-block' }}
@@ -98,7 +98,7 @@ export default function EpisodePage() {
                   Annotate
                 </Link>
               ) : (
-                <span style={{ color: '#28a745' }}>✓ Completed</span>
+                <span className="status-complete">✓ Completed</span>
               )}
             </div>
           ))}
