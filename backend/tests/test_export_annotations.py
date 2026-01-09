@@ -138,6 +138,47 @@ class TestExportAnnotationsFormat:
         assert "split_annotations" in result
         assert "statistics" in result
 
+    async def test_export_includes_is_custom_label(self, test_db: Session, sample_episode):
+        """Test that the export JSON includes the is_custom_label flag for outliers."""
+        service = EpisodeService(test_db)
+
+        # Manually set an outlier image as custom label in the DB
+        # Find one of the Chandler outliers from sample_episode
+        outlier_img = test_db.query(models.Image).filter(
+            models.Image.episode_id == sample_episode.id,
+            models.Image.annotation_status == "outlier",
+            models.Image.current_label == "Chandler"
+        ).first()
+        assert outlier_img is not None, "Pre-condition failed: No Chandler outlier found."
+
+        outlier_img.is_custom_label = True
+        outlier_img.current_label = "DK1" # Change label to a custom one
+        test_db.commit()
+
+        result = await service.export_annotations(str(sample_episode.id))
+
+        # Verify the updated outlier (now DK1) has is_custom_label: True
+        cluster_02_annotations = result["cluster_annotations"]["cluster-02"]
+        outliers_list = cluster_02_annotations["outliers"]
+
+        found_dk1_outlier = False
+        for outlier in outliers_list:
+            if outlier["label"] == "dk1": # Labels are lowercased in export
+                assert outlier["is_custom_label"] is True
+                found_dk1_outlier = True
+                break
+        assert found_dk1_outlier, "DK1 outlier with custom label not found in export."
+
+        # Ensure other outliers (if any) don't have it set to True unless they are custom
+        # In this setup, there should be one more Chandler outlier which is not custom
+        found_chandler_outlier = False
+        for outlier in outliers_list:
+            if outlier["label"] == "chandler":
+                assert outlier["is_custom_label"] is False
+                found_chandler_outlier = True
+                break
+        assert found_chandler_outlier, "Chandler outlier (non-custom) not found in export."
+
     async def test_metadata_structure(self, test_db: Session, sample_episode):
         """Metadata should contain required fields."""
         service = EpisodeService(test_db)

@@ -175,6 +175,7 @@ class Image(Base):
     current_label = Column(String(255), nullable=True)
     annotation_status = Column(String(20), server_default=text("'pending'"))
     annotated_at = Column(DateTime(timezone=True), nullable=True)
+    is_custom_label = Column(Boolean, server_default=text("false"))
 
     cluster = relationship("Cluster", back_populates="images")
     episode = relationship("Episode", back_populates="images")

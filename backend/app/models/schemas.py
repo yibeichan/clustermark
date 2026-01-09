@@ -110,6 +110,7 @@ class Image(ImageBase):
     current_label: Optional[str] = None
     annotation_status: str
     annotated_at: Optional[datetime] = None
+    is_custom_label: bool = False
 
     class Config:
         from_attributes = True

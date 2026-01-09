@@ -487,7 +487,12 @@ class EpisodeService:
                         img.current_label.lower() if img.current_label else "unlabeled"
                     )
                     outliers.append(
-                        {"image_path": relative_path, "label": outlier_label}
+                        {
+                            "image_path": relative_path,
+                            "label": outlier_label,
+                            # Explicit True check handles None from pre-migration data
+                            "is_custom_label": img.is_custom_label is True,
+                        }
                     )
                     outliers_found += 1
 
@@ -533,8 +538,16 @@ class EpisodeService:
             total_faces += total_images_in_cluster + split_face_count
 
             # Add to cluster_annotations
+            # Note: is_custom_label checks if any main image was custom-labeled.
+            # For batch annotations, all images get the same flag, so any() == all().
+            # Handle potential None values from pre-migration data (treated as False).
             cluster_annotations[cluster.cluster_name] = {
                 "label": cluster_label,
+                "is_custom_label": any(
+                    img.is_custom_label is True for img in main_images
+                )
+                if main_images
+                else False,
                 "confidence": confidence,
                 "image_count": len(main_images),
                 "image_paths": image_paths,
