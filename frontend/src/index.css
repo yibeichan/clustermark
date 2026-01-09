@@ -60,6 +60,13 @@ body {
   opacity: 0.7;
 }
 
+.button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.4);
+  position: relative;
+  z-index: 1;
+}
+
 /* Secondary button - gray, subtle */
 .button-secondary {
   background: #6c757d;
@@ -68,6 +75,10 @@ body {
 .button-secondary:hover:not(:disabled) {
   background: #5a6268;
   box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+}
+
+.button-secondary:focus-visible {
+  box-shadow: 0 0 0 3px rgba(108, 117, 125, 0.4);
 }
 
 /* Danger button - red, destructive actions */
@@ -80,6 +91,10 @@ body {
   box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
 }
 
+.button-danger:focus-visible {
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.4);
+}
+
 /* Success button - green, positive actions */
 .button-success {
   background: #28a745;
@@ -88,6 +103,10 @@ body {
 .button-success:hover:not(:disabled) {
   background: #218838;
   box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.button-success:focus-visible {
+  box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.4);
 }
 
 /* Small button variant */
@@ -142,7 +161,7 @@ body {
   object-fit: cover;
   border-radius: 4px;
   border: 2px solid transparent;
-  transition: border-color 0.2s ease, transform 0.2s ease;
+  transition: transform 0.2s ease;
 }
 
 .image-item img:hover {
