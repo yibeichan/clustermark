@@ -65,6 +65,10 @@ export default function EpisodePage() {
     return <div className="error">Episode not found</div>;
   }
 
+  const splitIndex = clusters.findIndex((c) => c.annotation_status !== 'pending');
+  const pendingClusters = splitIndex === -1 ? clusters : clusters.slice(0, splitIndex);
+  const annotatedClusters = splitIndex === -1 ? [] : clusters.slice(splitIndex);
+
   return (
     <div>
       <div className="card">
@@ -84,25 +88,22 @@ export default function EpisodePage() {
       <div className="card">
         <h3>Clusters</h3>
         <div className="grid">
-          {clusters
-            .filter((c) => c.annotation_status === 'pending')
-            .map((cluster) => (
-              <div key={cluster.id} className="card">
-                <h4>{cluster.cluster_name}</h4>
-                <p>Status: {cluster.annotation_status}</p>
-                <p>Images: {cluster.image_paths.length}</p>
-                <Link
-                  to={`/annotate/${cluster.id}`}
-                  className="button"
-                  style={{ textDecoration: 'none', display: 'inline-block', marginTop: '12px' }}
-                >
-                  Annotate
-                </Link>
-              </div>
-            ))}
+          {pendingClusters.map((cluster) => (
+            <div key={cluster.id} className="card">
+              <h4>{cluster.cluster_name}</h4>
+              <p>Status: {cluster.annotation_status}</p>
+              <p>Images: {cluster.image_paths.length}</p>
+              <Link
+                to={`/annotate/${cluster.id}`}
+                className="button mt-12"
+              >
+                Annotate
+              </Link>
+            </div>
+          ))}
         </div>
 
-        {clusters.some((c) => c.annotation_status === 'annotated') && (
+        {annotatedClusters.length > 0 && (
           <>
             <div className="cluster-divider">
               <hr className="divider-line" />
@@ -111,34 +112,23 @@ export default function EpisodePage() {
             </div>
 
             <div className="grid">
-              {clusters
-                .filter((c) => c.annotation_status === 'annotated')
-                .map((cluster) => (
-                  <div key={cluster.id} className="card">
-                    <h4>{cluster.cluster_name}</h4>
-                    <div className="annotated-actions mt-8">
-                      <span className="status-complete">✓ Completed</span>
-                      {cluster.person_name && (
-                        <span className="person-label">{cluster.person_name}</span>
-                      )}
-                      <Link
-                        to={`/annotate/${cluster.id}`}
-                        className="button button-secondary"
-                        style={{
-                          textDecoration: 'none',
-                          display: 'inline-block',
-                          marginTop: '8px',
-                          backgroundColor: '#6c757d',
-                          color: 'white',
-                          padding: '6px 12px',
-                          fontSize: '13px'
-                        }}
-                      >
-                        Edit
-                      </Link>
-                    </div>
+              {annotatedClusters.map((cluster) => (
+                <div key={cluster.id} className="card">
+                  <h4>{cluster.cluster_name}</h4>
+                  <div className="annotated-actions mt-8">
+                    <span className="status-complete">✓ Completed</span>
+                    {cluster.person_name && (
+                      <span className="person-label">{cluster.person_name}</span>
+                    )}
+                    <Link
+                      to={`/annotate/${cluster.id}`}
+                      className="button button-secondary mt-8 button-sm"
+                    >
+                      Edit
+                    </Link>
                   </div>
-                ))}
+                </div>
+              ))}
             </div>
           </>
         )}
