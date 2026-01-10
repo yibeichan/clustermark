@@ -377,18 +377,21 @@ class ClusterService:
                 detail=f"Images must have outlier status: {non_outliers}",
             )
 
-        # Gemini HIGH: Group annotations by person_name to perform bulk updates
-        # This avoids N+1 query problem (one UPDATE per annotation)
-        updates_by_name = defaultdict(list)
-        for annotation in annotations:
-            updates_by_name[annotation.person_name].append(annotation.image_id)
-
-        # Perform one bulk update per person_name (instead of N individual updates)
-        # Gemini HIGH + Codex P1: Filter by both ID and outlier status for safety
         # Phase 7: Normalize labels to title case for consistent storage
         total_updated = 0
-        for person_name, image_ids_to_update in updates_by_name.items():
-            normalized_label = normalize_label(person_name)
+        # Group updates by (normalized name, custom flag) to run fewer UPDATE queries safely
+        updates_by_group = defaultdict(list)
+        for annotation in annotations:
+            normalized_name = normalize_label(annotation.person_name)
+            updates_by_group[(normalized_name, annotation.is_custom_label)].append(
+                annotation.image_id
+            )
+
+        # Apply updates in batches
+        for (
+            normalized_label,
+            is_custom,
+        ), image_ids_to_update in updates_by_group.items():
             result = (
                 self.db.query(models.Image)
                 .filter(
@@ -399,7 +402,7 @@ class ClusterService:
                 .update(
                     {
                         "current_label": normalized_label,
-                        "is_custom_label": annotation.is_custom_label,
+                        "is_custom_label": is_custom,
                         # NOTE: Do NOT update annotation_status here. Outliers must retain
                         # status="outlier" so export_annotations() can correctly identify them
                         # and include them in the "outliers" array rather than "image_paths".

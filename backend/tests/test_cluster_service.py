@@ -783,6 +783,34 @@ class TestAnnotateOutliers:
         assert result["count"] == 0
         assert result["status"] == "outliers_annotated"
 
+    def test_annotate_outliers_mixed_custom_and_normal(
+        self, test_db, sample_cluster_with_outliers
+    ):
+        """Test that mixed custom and normal labels are correctly handled (regression for scope bug)."""
+        service = ClusterService(test_db)
+        outlier_ids = sample_cluster_with_outliers["outlier_ids"]
+
+        annotations = [
+            schemas.OutlierAnnotation(
+                image_id=outlier_ids[0], person_name="Rachel", is_custom_label=False
+            ),
+            schemas.OutlierAnnotation(
+                image_id=outlier_ids[1], person_name="DK1", is_custom_label=True
+            ),
+        ]
+
+        service.annotate_outliers(annotations)
+
+        # Verify Rachel is NOT custom
+        img_rachel = test_db.query(models.Image).filter(models.Image.id == outlier_ids[0]).first()
+        assert img_rachel.current_label == "Rachel"
+        assert img_rachel.is_custom_label is False
+
+        # Verify DK1 IS custom
+        img_dk1 = test_db.query(models.Image).filter(models.Image.id == outlier_ids[1]).first()
+        assert img_dk1.current_label == "Dk1"
+        assert img_dk1.is_custom_label is True
+
 
 class TestFullWorkflow:
     """Integration tests for complete annotation workflows."""

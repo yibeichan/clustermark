@@ -17,7 +17,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column('images', sa.Column('is_custom_label', sa.Boolean(), server_default=sa.text('false'), nullable=True))
+    op.add_column('images', sa.Column('is_custom_label', sa.Boolean(), server_default=sa.text('false'), nullable=False))
 
 
 def downgrade() -> None:
