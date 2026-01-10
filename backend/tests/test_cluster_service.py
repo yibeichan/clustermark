@@ -694,7 +694,8 @@ class TestAnnotateOutliers:
             .first()
         )
         assert outlier_1.current_label == "Joey"
-        assert outlier_1.annotation_status == "annotated"
+        assert outlier_1.annotation_status == "outlier"
+        assert outlier_1.is_custom_label is False
         assert outlier_1.annotated_at is not None
 
         outlier_2 = (
@@ -732,7 +733,7 @@ class TestAnnotateOutliers:
         for img_id in outlier_ids:
             img = test_db.query(models.Image).filter(models.Image.id == img_id).first()
             assert img.current_label == "Ross"
-            assert img.annotation_status == "annotated"
+            assert img.annotation_status == "outlier"
 
     def test_annotate_outliers_custom_labels(
         self, test_db, sample_cluster_with_outliers
@@ -761,6 +762,8 @@ class TestAnnotateOutliers:
             .first()
         )
         assert outlier_1.current_label == "Gunther"
+        assert outlier_1.is_custom_label is True
+        assert outlier_1.annotation_status == "outlier"
 
         outlier_2 = (
             test_db.query(models.Image)
@@ -768,6 +771,8 @@ class TestAnnotateOutliers:
             .first()
         )
         assert outlier_2.current_label == "Janice"
+        assert outlier_2.is_custom_label is True
+        assert outlier_2.annotation_status == "outlier"
 
     def test_annotate_outliers_empty_list(self, test_db):
         """Test annotating with empty list (edge case)."""
@@ -777,6 +782,34 @@ class TestAnnotateOutliers:
 
         assert result["count"] == 0
         assert result["status"] == "outliers_annotated"
+
+    def test_annotate_outliers_mixed_custom_and_normal(
+        self, test_db, sample_cluster_with_outliers
+    ):
+        """Test that mixed custom and normal labels are correctly handled (regression for scope bug)."""
+        service = ClusterService(test_db)
+        outlier_ids = sample_cluster_with_outliers["outlier_ids"]
+
+        annotations = [
+            schemas.OutlierAnnotation(
+                image_id=outlier_ids[0], person_name="Rachel", is_custom_label=False
+            ),
+            schemas.OutlierAnnotation(
+                image_id=outlier_ids[1], person_name="DK1", is_custom_label=True
+            ),
+        ]
+
+        service.annotate_outliers(annotations)
+
+        # Verify Rachel is NOT custom
+        img_rachel = test_db.query(models.Image).filter(models.Image.id == outlier_ids[0]).first()
+        assert img_rachel.current_label == "Rachel"
+        assert img_rachel.is_custom_label is False
+
+        # Verify DK1 IS custom
+        img_dk1 = test_db.query(models.Image).filter(models.Image.id == outlier_ids[1]).first()
+        assert img_dk1.current_label == "Dk1"
+        assert img_dk1.is_custom_label is True
 
 
 class TestFullWorkflow:
@@ -900,14 +933,19 @@ class TestFullWorkflow:
         batch_result = service.annotate_cluster_batch(cluster_id, batch_annotation)
         assert batch_result["status"] == "completed"
 
-        # Verify final state: 22 Rachel + 3 others
+        # Verify final state: 22 Rachel (annotated) + 3 others (outlier)
         all_images = (
             test_db.query(models.Image)
             .filter(models.Image.cluster_id == cluster.id)
             .all()
         )
         assert len(all_images) == 25
-        assert all(img.annotation_status == "annotated" for img in all_images)
+        
+        # 22 should be annotated, 3 should be outlier
+        annotated_count = sum(1 for img in all_images if img.annotation_status == "annotated")
+        outlier_count = sum(1 for img in all_images if img.annotation_status == "outlier")
+        assert annotated_count == 22
+        assert outlier_count == 3
 
         rachel_count = sum(1 for img in all_images if img.current_label == "Rachel")
         assert rachel_count == 22
