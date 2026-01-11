@@ -406,7 +406,7 @@ class ClusterService:
                     {
                         "current_label": normalized_label,
                         "is_custom_label": is_custom,
-                        "quality_attributes": list(quality_attrs) if quality_attrs else None,
+                        "quality_attributes": list(quality_attrs),
                         # NOTE: Do NOT update annotation_status here. Outliers must retain
                         # status="outlier" so export_annotations() can correctly identify them
                         # and include them in the "outliers" array rather than "image_paths".

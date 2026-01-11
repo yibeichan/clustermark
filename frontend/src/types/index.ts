@@ -94,7 +94,7 @@ export interface OutlierAnnotation {
   image_id: string;
   person_name: string;
   is_custom_label: boolean;
-  quality_attributes: string[]; // Quality modifiers like @poor, @blurry
+  quality_attributes?: string[]; // Quality modifiers like @poor, @blurry
 }
 
 // Phase 7: Episode speakers for dynamic dropdown

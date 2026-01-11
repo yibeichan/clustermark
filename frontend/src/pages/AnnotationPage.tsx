@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { clusterApi, episodeApi } from "../services/api";
@@ -320,37 +320,39 @@ export default function AnnotationPage() {
   };
 
   // Fix 3 (P1): Store label, custom flag, and quality for outliers
-  const handleOutlierLabelChange = (
-    imageId: string,
-    label: string,
-    isCustom: boolean,
-  ) => {
-    setOutlierAnnotations((prev) => {
-      const newMap = new Map(prev);
-      if (label) {
-        const existing = prev.get(imageId);
-        newMap.set(imageId, { label, isCustom, quality: existing?.quality || [] });
-      } else {
-        newMap.delete(imageId);
-      }
-      return newMap;
-    });
-  };
+  const handleOutlierLabelChange = useCallback(
+    (imageId: string, label: string, isCustom: boolean) => {
+      setOutlierAnnotations((prev) => {
+        const newMap = new Map(prev);
+        if (label) {
+          const existing = prev.get(imageId);
+          newMap.set(imageId, { label, isCustom, quality: existing?.quality || [] });
+        } else {
+          newMap.delete(imageId);
+        }
+        return newMap;
+      });
+    },
+    [],
+  );
 
   // Handle quality attribute changes for outliers
-  const handleOutlierQualityChange = (imageId: string, quality: string[]) => {
-    setOutlierAnnotations((prev) => {
-      const newMap = new Map(prev);
-      const existing = prev.get(imageId);
-      if (existing) {
-        newMap.set(imageId, { ...existing, quality });
-      } else {
-        // Allow setting quality before label is selected
-        newMap.set(imageId, { label: "", isCustom: false, quality });
-      }
-      return newMap;
-    });
-  };
+  const handleOutlierQualityChange = useCallback(
+    (imageId: string, quality: string[]) => {
+      setOutlierAnnotations((prev) => {
+        const newMap = new Map(prev);
+        const existing = prev.get(imageId);
+        if (existing) {
+          newMap.set(imageId, { ...existing, quality });
+        } else {
+          // Allow setting quality before label is selected
+          newMap.set(imageId, { label: "", isCustom: false, quality });
+        }
+        return newMap;
+      });
+    },
+    [],
+  );
 
   const handleOutliersSubmit = async () => {
     // Defensive: guard mirrors button's disabled logic

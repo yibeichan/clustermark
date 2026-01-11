@@ -841,7 +841,7 @@ class TestAnnotateOutliers:
         assert set(img1.quality_attributes) == {"@poor", "@blurry"}
 
         img2 = test_db.query(models.Image).filter(models.Image.id == outlier_ids[1]).first()
-        assert img2.quality_attributes == [] or img2.quality_attributes is None
+        assert img2.quality_attributes == []
 
 
 class TestFullWorkflow:
