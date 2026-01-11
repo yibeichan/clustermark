@@ -113,8 +113,8 @@ The workflow:
       "label": "Monica",
       "image_count": 18,
       "outliers": [
-        {"image": "scene_0_track_1_frame_001.jpg", "label": "Chandler"},
-        {"image": "scene_0_track_1_frame_015.jpg", "label": "Chandler"}
+        {"image": "scene_0_track_1_frame_001.jpg", "label": "Chandler", "quality": ["@blurry"]},
+        {"image": "scene_0_track_1_frame_015.jpg", "label": "Chandler", "quality": []}
       ]
     }
   }
