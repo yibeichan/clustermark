@@ -377,7 +377,7 @@ class ClusterService:
                 detail=f"Images must have outlier status: {non_outliers}",
             )
 
-        # Phase 7: Normalize labels to title case for consistent storage
+        # Phase 7: Normalize labels to title case and group by quality attributes for consistent storage and efficient batch updates
         total_updated = 0
         # Group updates by (normalized name, custom flag, quality_attributes tuple) to run fewer UPDATE queries safely
         updates_by_group = defaultdict(list)

@@ -18,8 +18,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Use ARRAY(Text) for PostgreSQL, Text for SQLite (tests)
-    # The TextArray type decorator in models.py handles serialization
+    # Use ARRAY(Text) for PostgreSQL - this migration is PostgreSQL-specific.
+    # SQLite compatibility is handled by the TextArray TypeDecorator in models.py
+    # which serializes the list to JSON/string, so no ARRAY type is needed there.
     op.add_column(
         'images',
         sa.Column(
