@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
 
 class EpisodeBase(BaseModel):
@@ -112,6 +112,10 @@ class Image(ImageBase):
     annotated_at: Optional[datetime] = None
     is_custom_label: bool = False
     quality_attributes: List[str] = []
+
+    @validator("quality_attributes", pre=True, always=True)
+    def default_to_list(cls, v):
+        return v or []
 
     class Config:
         from_attributes = True

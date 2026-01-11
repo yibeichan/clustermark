@@ -26,9 +26,12 @@ def upgrade() -> None:
         sa.Column(
             'quality_attributes',
             postgresql.ARRAY(Text()),
-            nullable=True
+            nullable=True,
+            server_default=sa.text("'{}'")
         )
     )
+    # Ensure existing rows use an empty array instead of NULL for quality_attributes.
+    op.execute("UPDATE images SET quality_attributes = '{}' WHERE quality_attributes IS NULL")
 
 
 def downgrade() -> None:
