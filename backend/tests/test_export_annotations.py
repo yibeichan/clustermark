@@ -179,6 +179,39 @@ class TestExportAnnotationsFormat:
                 break
         assert found_chandler_outlier, "Chandler outlier (non-custom) not found in export."
 
+    async def test_export_includes_quality_attributes(self, test_db: Session, sample_episode):
+        """Test that the export JSON includes quality attributes for outliers."""
+        service = EpisodeService(test_db)
+
+        # Find one of the Chandler outliers and set quality attributes
+        outlier_img = test_db.query(models.Image).filter(
+            models.Image.episode_id == sample_episode.id,
+            models.Image.annotation_status == "outlier",
+            models.Image.current_label == "Chandler"
+        ).first()
+        assert outlier_img is not None, "Pre-condition failed: No Chandler outlier found."
+
+        outlier_img.quality_attributes = ["@blurry", "@dark"]
+        test_db.commit()
+
+        result = await service.export_annotations(str(sample_episode.id))
+
+        # Verify the outlier has quality field in export
+        cluster_02_annotations = result["cluster_annotations"]["cluster-02"]
+        outliers_list = cluster_02_annotations["outliers"]
+
+        found_quality_outlier = False
+        for outlier in outliers_list:
+            if "quality" in outlier and len(outlier["quality"]) > 0:
+                assert set(outlier["quality"]) == {"@blurry", "@dark"}
+                found_quality_outlier = True
+                break
+        assert found_quality_outlier, "Outlier with quality attributes not found in export."
+
+        # Verify other outliers have empty quality list
+        for outlier in outliers_list:
+            assert "quality" in outlier  # All outliers should have quality field
+
     async def test_metadata_structure(self, test_db: Session, sample_episode):
         """Metadata should contain required fields."""
         service = EpisodeService(test_db)

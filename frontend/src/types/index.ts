@@ -65,6 +65,7 @@ export interface Image {
   current_label?: string;
   annotation_status: AnnotationStatus;
   annotated_at?: string; // ISO datetime string
+  quality_attributes?: string[]; // Quality modifiers like @poor, @blurry
 }
 
 export interface PaginatedImagesResponse {
@@ -93,6 +94,7 @@ export interface OutlierAnnotation {
   image_id: string;
   person_name: string;
   is_custom_label: boolean;
+  quality_attributes?: string[]; // Quality modifiers like @poor, @blurry
 }
 
 // Phase 7: Episode speakers for dynamic dropdown

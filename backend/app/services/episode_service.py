@@ -492,6 +492,7 @@ class EpisodeService:
                             "label": outlier_label,
                             # Explicit True check handles None from pre-migration data
                             "is_custom_label": img.is_custom_label is True,
+                            "quality": img.quality_attributes or [],
                         }
                     )
                     outliers_found += 1

@@ -176,6 +176,7 @@ class Image(Base):
     annotation_status = Column(String(20), server_default=text("'pending'"))
     annotated_at = Column(DateTime(timezone=True), nullable=True)
     is_custom_label = Column(Boolean, nullable=False, server_default=text("false"))
+    quality_attributes = Column(TextArray())  # ['@poor', '@blurry', '@dark', '@profile', '@back']
 
     cluster = relationship("Cluster", back_populates="images")
     episode = relationship("Episode", back_populates="images")
