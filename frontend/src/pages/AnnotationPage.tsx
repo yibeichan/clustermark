@@ -49,9 +49,9 @@ export default function AnnotationPage() {
     Map<string, Image>
   >(new Map());
 
-  // Fix 3 (P1): Store both label and isCustom flag for outliers
+  // Fix 3 (P1): Store label, isCustom flag, and quality for outliers
   const [outlierAnnotations, setOutlierAnnotations] = useState<
-    Map<string, { label: string; isCustom: boolean }>
+    Map<string, { label: string; isCustom: boolean; quality: string[] }>
   >(new Map());
 
   // Fix 2 (P1): Track custom flag for batch label
@@ -319,7 +319,7 @@ export default function AnnotationPage() {
     }
   };
 
-  // Fix 3 (P1): Store both label and custom flag for outliers
+  // Fix 3 (P1): Store label, custom flag, and quality for outliers
   const handleOutlierLabelChange = (
     imageId: string,
     label: string,
@@ -328,9 +328,25 @@ export default function AnnotationPage() {
     setOutlierAnnotations((prev) => {
       const newMap = new Map(prev);
       if (label) {
-        newMap.set(imageId, { label, isCustom });
+        const existing = prev.get(imageId);
+        newMap.set(imageId, { label, isCustom, quality: existing?.quality || [] });
       } else {
         newMap.delete(imageId);
+      }
+      return newMap;
+    });
+  };
+
+  // Handle quality attribute changes for outliers
+  const handleOutlierQualityChange = (imageId: string, quality: string[]) => {
+    setOutlierAnnotations((prev) => {
+      const newMap = new Map(prev);
+      const existing = prev.get(imageId);
+      if (existing) {
+        newMap.set(imageId, { ...existing, quality });
+      } else {
+        // Allow setting quality before label is selected
+        newMap.set(imageId, { label: "", isCustom: false, quality });
       }
       return newMap;
     });
@@ -346,10 +362,11 @@ export default function AnnotationPage() {
     try {
       const annotations: OutlierAnnotation[] = Array.from(
         outlierAnnotations.entries(),
-      ).map(([image_id, { label, isCustom }]) => ({
+      ).map(([image_id, { label, isCustom, quality }]) => ({
         image_id,
         person_name: label.trim(),
         is_custom_label: isCustom, // Fix 3: Use stored custom flag
+        quality_attributes: quality, // Include quality modifiers
       }));
       await clusterApi.annotateOutliers(annotations);
       setStep("label-remaining");
@@ -465,6 +482,7 @@ export default function AnnotationPage() {
           outlierImages={outlierImagesArray}
           annotations={outlierAnnotations}
           onLabelChange={handleOutlierLabelChange}
+          onQualityChange={handleOutlierQualityChange}
           onSubmit={handleOutliersSubmit}
           disabled={submitting || speakersLoading}
           speakers={speakers}

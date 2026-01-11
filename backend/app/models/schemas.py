@@ -111,6 +111,7 @@ class Image(ImageBase):
     annotation_status: str
     annotated_at: Optional[datetime] = None
     is_custom_label: bool = False
+    quality_attributes: List[str] = []
 
     class Config:
         from_attributes = True
@@ -144,6 +145,7 @@ class OutlierAnnotation(BaseModel):
     image_id: uuid.UUID
     person_name: str
     is_custom_label: bool = False
+    quality_attributes: List[str] = []
 
 
 # Phase 6b: Outlier fetch response schema
