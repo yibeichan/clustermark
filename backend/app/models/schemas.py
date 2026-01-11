@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
 
 class EpisodeBase(BaseModel):
@@ -111,6 +111,11 @@ class Image(ImageBase):
     annotation_status: str
     annotated_at: Optional[datetime] = None
     is_custom_label: bool = False
+    quality_attributes: List[str] = []
+
+    @validator("quality_attributes", pre=True, always=True)
+    def default_to_list(cls, v):
+        return v or []
 
     class Config:
         from_attributes = True
@@ -144,6 +149,7 @@ class OutlierAnnotation(BaseModel):
     image_id: uuid.UUID
     person_name: str
     is_custom_label: bool = False
+    quality_attributes: List[str] = []
 
 
 # Phase 6b: Outlier fetch response schema

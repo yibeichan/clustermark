@@ -377,13 +377,15 @@ class ClusterService:
                 detail=f"Images must have outlier status: {non_outliers}",
             )
 
-        # Phase 7: Normalize labels to title case for consistent storage
+        # Phase 7: Normalize labels to title case and group by quality attributes for consistent storage and efficient batch updates
         total_updated = 0
-        # Group updates by (normalized name, custom flag) to run fewer UPDATE queries safely
+        # Group updates by (normalized name, custom flag, quality_attributes tuple) to run fewer UPDATE queries safely
         updates_by_group = defaultdict(list)
         for annotation in annotations:
             normalized_name = normalize_label(annotation.person_name)
-            updates_by_group[(normalized_name, annotation.is_custom_label)].append(
+            # Convert quality_attributes list to tuple for hashability (dict key)
+            quality_tuple = tuple(sorted(annotation.quality_attributes)) if annotation.quality_attributes else ()
+            updates_by_group[(normalized_name, annotation.is_custom_label, quality_tuple)].append(
                 annotation.image_id
             )
 
@@ -391,6 +393,7 @@ class ClusterService:
         for (
             normalized_label,
             is_custom,
+            quality_attrs,
         ), image_ids_to_update in updates_by_group.items():
             result = (
                 self.db.query(models.Image)
@@ -403,6 +406,7 @@ class ClusterService:
                     {
                         "current_label": normalized_label,
                         "is_custom_label": is_custom,
+                        "quality_attributes": list(quality_attrs),
                         # NOTE: Do NOT update annotation_status here. Outliers must retain
                         # status="outlier" so export_annotations() can correctly identify them
                         # and include them in the "outliers" array rather than "image_paths".

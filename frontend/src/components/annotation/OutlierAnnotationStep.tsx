@@ -1,11 +1,13 @@
 import { Image } from "../../types";
 import LabelDropdown from "../LabelDropdown";
+import QualitySelector from "./QualitySelector";
 import { FALLBACK_IMAGE_SRC } from "../../utils/constants";
 
 interface OutlierAnnotationStepProps {
   outlierImages: Image[];
-  annotations: Map<string, { label: string; isCustom: boolean }>;
+  annotations: Map<string, { label: string; isCustom: boolean; quality: string[] }>;
   onLabelChange: (imageId: string, label: string, isCustom: boolean) => void;
+  onQualityChange: (imageId: string, quality: string[]) => void;
   onSubmit: () => void;
   disabled: boolean;
   speakers?: string[]; // Phase 7: Dynamic speaker list from episode data
@@ -20,6 +22,7 @@ interface OutlierAnnotationStepProps {
  * Features:
  * - Shows each outlier with filename
  * - Label dropdown for each image
+ * - Quality modifier buttons (optional)
  * - Progress indicator (X of Y annotated)
  * - Submit button (disabled until all annotated)
  */
@@ -27,6 +30,7 @@ export default function OutlierAnnotationStep({
   outlierImages,
   annotations,
   onLabelChange,
+  onQualityChange,
   onSubmit,
   disabled,
   speakers,
@@ -99,6 +103,11 @@ export default function OutlierAnnotationStep({
                 }
                 disabled={disabled}
                 speakers={speakers}
+              />
+              <QualitySelector
+                selected={annotations.get(image.id)?.quality || []}
+                onChange={(quality) => onQualityChange(image.id, quality)}
+                disabled={disabled}
               />
             </div>
           </div>

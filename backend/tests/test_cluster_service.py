@@ -812,6 +812,38 @@ class TestAnnotateOutliers:
         assert img_dk1.is_custom_label is True
 
 
+    def test_annotate_outliers_updates_quality_attributes(self, test_db, sample_cluster_with_outliers):
+        """Test that quality attributes are correctly saved."""
+        service = ClusterService(test_db)
+        outlier_ids = sample_cluster_with_outliers["outlier_ids"]
+
+        annotations = [
+            schemas.OutlierAnnotation(
+                image_id=outlier_ids[0],
+                person_name="Rachel",
+                is_custom_label=False,
+                quality_attributes=["@poor", "@blurry"]
+            ),
+            schemas.OutlierAnnotation(
+                image_id=outlier_ids[1],
+                person_name="Monica",
+                is_custom_label=False,
+                # Empty list = no attributes
+                quality_attributes=[]
+            ),
+        ]
+
+        result = service.annotate_outliers(annotations)
+        assert result["count"] == 2
+
+        # Verify attributes saved
+        img1 = test_db.query(models.Image).filter(models.Image.id == outlier_ids[0]).first()
+        assert set(img1.quality_attributes) == {"@poor", "@blurry"}
+
+        img2 = test_db.query(models.Image).filter(models.Image.id == outlier_ids[1]).first()
+        assert img2.quality_attributes == []
+
+
 class TestFullWorkflow:
     """Integration tests for complete annotation workflows."""
 
