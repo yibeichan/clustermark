@@ -76,13 +76,27 @@ export default function EpisodePage() {
         <h2 className="mt-12">{episode.name}</h2>
         <p className="mt-8">Status: {episode.status}</p>
         <p className="mb-16">Progress: {episode.annotated_clusters} / {episode.total_clusters} clusters</p>
-        <button
-          className="button"
-          onClick={handleExport}
-          disabled={episode.annotated_clusters === 0}
-        >
-          Export Annotations
-        </button>
+        <div className="flex gap-4">
+          <button
+            className="button"
+            onClick={handleExport}
+            disabled={episode.annotated_clusters === 0}
+          >
+            Export Annotations
+          </button>
+
+          <button
+            className="button button-primary"
+            onClick={() => navigate(`/episodes/${episode.id}/harmonize`)}
+            disabled={
+              // Enabled if explicit status set OR all clusters annotated
+              episode.status !== 'ready_for_harmonization' &&
+              pendingClusters.length > 0
+            }
+          >
+            Harmonize
+          </button>
+        </div>
       </div>
 
       <div className="card">

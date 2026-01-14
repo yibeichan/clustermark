@@ -55,14 +55,20 @@ export default function HomePage() {
   };
 
   const onDrop = async (acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
-    if (!file) return;
+    // Separate files
+    const zipFile = acceptedFiles.find(f => f.name.endsWith('.zip'));
+    const jsonFile = acceptedFiles.find(f => f.name.endsWith('.json'));
+
+    if (!zipFile) {
+      setError('Please upload a ZIP file.');
+      return;
+    }
 
     setUploading(true);
     setError(null);
 
     try {
-      await episodeApi.upload(file);
+      await episodeApi.upload(zipFile, jsonFile);
       await loadEpisodes();
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
@@ -71,7 +77,7 @@ export default function HomePage() {
         setDuplicateInfo({
           existingId: detail.existing_id,
           hasAnnotations: detail.has_annotations,
-          file: file,
+          file: zipFile,
         });
       } else {
         setError('Failed to upload episode');
@@ -97,36 +103,16 @@ export default function HomePage() {
     }
   };
 
-  const handleRename = async () => {
-    if (!duplicateInfo) return;
-
-    // Create a new file with unique suffix (timestamp) to avoid collisions
-    const originalName = duplicateInfo.file.name.replace('.zip', '');
-    const timestamp = new Date().getTime();
-    const newName = `${originalName}_v${timestamp}.zip`;
-    const renamedFile = new File([duplicateInfo.file], newName, {
-      type: duplicateInfo.file.type,
-    });
-
-    setUploading(true);
-    setError(null);
-    try {
-      await episodeApi.upload(renamedFile);
-      await loadEpisodes();
-    } catch (err) {
-      setError('Failed to upload renamed episode');
-    } finally {
-      setUploading(false);
-      setDuplicateInfo(null);
-    }
-  };
+  // ... (handleRename remains the same)
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'application/zip': ['.zip']
+      'application/zip': ['.zip'],
+      'application/json': ['.json']
     },
-    multiple: false
+    multiple: true,
+    maxFiles: 2
   });
 
   if (loading) {
@@ -172,9 +158,12 @@ export default function HomePage() {
           {uploading ? (
             <p>Uploading...</p>
           ) : isDragActive ? (
-            <p>Drop the ZIP file here...</p>
+            <p>Drop files here...</p>
           ) : (
-            <p>Drag and drop a ZIP file here, or click to select</p>
+            <div>
+              <p>Drag and drop encoded episode (.zip)</p>
+              <p className="text-secondary text-sm mt-2">Optional: Include annotations (.json) to skip labeling</p>
+            </div>
           )}
         </div>
         {error && <div className="error">{error}</div>}

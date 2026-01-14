@@ -11,9 +11,20 @@ router = APIRouter()
 
 
 @router.post("/upload", response_model=schemas.Episode)
-async def upload_episode(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_episode(
+    file: UploadFile = File(...),
+    annotations: UploadFile = File(None),
+    db: Session = Depends(get_db),
+):
     service = EpisodeService(db)
-    return await service.upload_episode(file)
+    episode = await service.upload_episode(file)
+
+    if annotations:
+        await service.import_annotations(str(episode.id), annotations)
+        # Refresh to get updated status
+        db.refresh(episode)
+
+    return episode
 
 
 @router.get("/", response_model=List[schemas.Episode])
