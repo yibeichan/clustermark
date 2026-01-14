@@ -11,6 +11,7 @@ import {
   OutlierAnnotation,
   Image,
   EpisodeSpeakersResponse,
+  Pile,
 } from "../types";
 
 const API_BASE = "/api";

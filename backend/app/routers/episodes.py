@@ -105,3 +105,24 @@ async def replace_episode(
     service = EpisodeService(db)
     return await service.replace_episode(episode_id, file)
 
+
+@router.get("/{episode_id}/piles", response_model=List[schemas.Pile])
+async def get_piles(episode_id: str, db: Session = Depends(get_db)):
+    """
+    Get initial piles for harmonization.
+    """
+    service = EpisodeService(db)
+    return await service.get_piles(episode_id)
+
+
+@router.post("/{episode_id}/harmonize")
+async def save_harmonization(
+    episode_id: str, request: schemas.HarmonizeRequest, db: Session = Depends(get_db)
+):
+    """
+    Save harmonized piles.
+    """
+    service = EpisodeService(db)
+    await service.save_harmonization(episode_id, request.piles)
+    return {"status": "success"}
+

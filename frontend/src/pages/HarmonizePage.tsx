@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { consolidationApi, clusterApi, episodeApi } from '../services/api'; // Added episodeApi
-import { Pile, PileImage } from '../types';
+import { consolidationApi, episodeApi } from '../services/api'; // Added episodeApi
+import { Pile } from '../types';
 import LabelDropdown from '../components/LabelDropdown';
 
 export default function HarmonizePage() {
@@ -14,7 +14,6 @@ export default function HarmonizePage() {
     const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
     const [expandedPileId, setExpandedPileId] = useState<string | null>(null);
     const [combineLabel, setCombineLabel] = useState<string>('');
-    const [isCustomCombineLabel, setIsCustomCombineLabel] = useState<boolean>(false);
     const [speakers, setSpeakers] = useState<string[]>([]); // For LabelDropdown
 
     // Define bucket URL base
@@ -152,9 +151,8 @@ export default function HarmonizePage() {
                             <div className="flex items-center gap-4 mt-2">
                                 <LabelDropdown
                                     value={combineLabel}
-                                    onChange={(label, isCustom) => {
+                                    onChange={(label) => {
                                         setCombineLabel(label);
-                                        setIsCustomCombineLabel(isCustom);
                                     }}
                                     speakers={speakers}
                                     placeholder="Select new label for combined pile..."

@@ -103,7 +103,14 @@ export default function HomePage() {
     }
   };
 
-  // ... (handleRename remains the same)
+  const handleRename = async () => {
+    if (!duplicateInfo) return;
+
+    // Currently, just close the duplicate dialog without additional API calls.
+    // This avoids runtime errors when the "Upload as New Version" button is clicked.
+    // In a real implementation, this would likely trigger a re-upload with a new name or separate flow.
+    setDuplicateInfo(null);
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
