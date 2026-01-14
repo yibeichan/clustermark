@@ -819,7 +819,7 @@ class EpisodeService:
 
     async def get_piles(self, episode_id: str) -> List[Dict]:
         """
-        Get all annotation piles for harmonization.
+        Get initial piles for harmonization.
 
         Group images by current_label to form piles.
         """
