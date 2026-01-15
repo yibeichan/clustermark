@@ -795,8 +795,12 @@ class EpisodeService:
                     )
                     label = outlier_info.get("label")
                     if label:
-                        # User request: DK1 -> DK1_cluster-01 (keep cluster specific)
-                        img.current_label = f"{label}_{cluster.cluster_name}"
+                        if label.upper().startswith("DK"):
+                            # User request: DK labels stay cluster-specific (DK1_cluster-name)
+                            img.current_label = f"{label}_{cluster.cluster_name}"
+                        else:
+                            # User request: Main characters (Rachel, Monica) auto-combine across clusters
+                            img.current_label = label
                     else:
                         img.current_label = f"{cluster.cluster_name}_DK"
                     if outlier_info.get("is_custom_label"):
