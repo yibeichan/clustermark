@@ -17,7 +17,7 @@ export default function HarmonizePage() {
     const [speakers, setSpeakers] = useState<string[]>([]); // For LabelDropdown
 
     // Define bucket URL base
-    const BUCKET_URL = 'https://storage.googleapis.com/moments-clustermark-prod';
+    const BUCKET_URL = '/uploads';
 
     useEffect(() => {
         if (episodeId) {
