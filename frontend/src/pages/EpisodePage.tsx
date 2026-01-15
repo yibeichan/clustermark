@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { episodeApi } from '../services/api';
 import { Episode, Cluster } from '../types';
 import { sortClusters } from '../utils/clusterSorting';
 
 export default function EpisodePage() {
   const { episodeId } = useParams<{ episodeId: string }>();
+  const navigate = useNavigate();
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [loading, setLoading] = useState(true);
