@@ -30,7 +30,7 @@ export const episodeApi = {
     if (annotations) {
       formData.append("annotations", annotations);
     }
-    return api.post<Episode>("/upload", formData);
+    return api.post<Episode>("/episodes/upload", formData);
   },
   export: (id: string) => api.get(`/episodes/${id}/export`),
 
