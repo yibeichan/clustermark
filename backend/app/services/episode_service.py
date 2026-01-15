@@ -793,7 +793,12 @@ class EpisodeService:
                         (o for o in info.get("outliers", []) if o["image_path"] == rel_path), 
                         {}
                     )
-                    img.current_label = outlier_info.get("label", f"{cluster.cluster_name}_DK")
+                    label = outlier_info.get("label")
+                    if label:
+                        # User request: DK1 -> DK1_cluster-01 (keep cluster specific)
+                        img.current_label = f"{label}_{cluster.cluster_name}"
+                    else:
+                        img.current_label = f"{cluster.cluster_name}_DK"
                     if outlier_info.get("is_custom_label"):
                         img.is_custom_label = True
                     if outlier_info.get("quality"):
