@@ -4,7 +4,7 @@ import re
 import shutil
 import zipfile
 from uuid import uuid4
-from collections import defaultdict
+from collections import defaultdict, Counter
 from pathlib import Path
 from typing import Dict, List
 
@@ -442,18 +442,44 @@ class EpisodeService:
             if not images and not cluster_splits:
                 continue
 
-            # CORRECT OUTLIER DETECTION: Check annotation_status, not label comparison
-            outlier_images = [
-                img for img in images if img.annotation_status == "outlier"
+            # DYNAMIC RE-EVALUATION for Harmonization
+            # Instead of relying on static cluster.person_name or old annotation_status,
+            # we redetermine the cluster's identity based on the majority label of its images.
+            # This ensures export matches the final harmonized state.
+            
+            valid_images = [
+                img for img in images 
+                if img.annotation_status in ["annotated", "outlier"]
             ]
-            main_images = [
-                img for img in images if img.annotation_status == "annotated"
-            ]
+            
+            if not valid_images and not cluster_splits:
+                continue
 
-            # Determine cluster label (lowercase for export)
-            cluster_label = (
-                cluster.person_name.lower() if cluster.person_name else "unlabeled"
+            # Determine dominant label
+            label_counts = Counter(
+                img.current_label for img in valid_images 
+                if img.current_label
             )
+            
+            if label_counts:
+                # Most frequent label becomes the cluster's exported label
+                cluster_label = label_counts.most_common(1)[0][0]
+            else:
+                # Fallback to DB label if no images have labels (unlikely)
+                cluster_label = cluster.person_name if cluster.person_name else "unlabeled"
+
+            # Re-classify images based on the new dominant label
+            main_images = [
+                img for img in valid_images 
+                if img.current_label == cluster_label
+            ]
+            outlier_images = [
+                img for img in valid_images 
+                if img.current_label != cluster_label
+            ]
+            
+            # Ensure label is lowercase for export consistency
+            cluster_label = cluster_label.lower()
 
             # Track not_human clusters
             if cluster_label == "not_human":
