@@ -9,6 +9,7 @@ export default function HarmonizePage() {
     const navigate = useNavigate();
     const [piles, setPiles] = useState<Pile[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [selectedPiles, setSelectedPiles] = useState<Set<string>>(new Set());
     const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
@@ -81,7 +82,7 @@ export default function HarmonizePage() {
         const newPile: Pile = {
             id: crypto.randomUUID(),
             name: combineLabel,
-            isOutlier: false, // Combined piles are assumed to be "known" unless labeled otherwise, but mostly used for knowns
+            isOutlier: combineLabel.toLowerCase().startsWith('dk'),
             images: allImages
         };
 
@@ -122,12 +123,12 @@ export default function HarmonizePage() {
     const handleSave = async () => {
         if (!episodeId) return;
         try {
-            setLoading(true);
+            setIsSaving(true);
             await consolidationApi.saveHarmonization(episodeId, piles);
             navigate(`/episodes/${episodeId}`);
         } catch (err) {
             setError('Failed to save harmonization');
-            setLoading(false);
+            setIsSaving(false);
         }
     };
 
@@ -143,8 +144,12 @@ export default function HarmonizePage() {
                         <button className="button button-secondary" onClick={() => navigate(`/episodes/${episodeId}`)}>
                             Cancel
                         </button>
-                        <button className="button" onClick={handleSave}>
-                            Save & Finish
+                        <button
+                            className="button"
+                            onClick={handleSave}
+                            disabled={isSaving}
+                        >
+                            {isSaving ? 'Saving...' : 'Save & Finish'}
                         </button>
                     </div>
                 </div>

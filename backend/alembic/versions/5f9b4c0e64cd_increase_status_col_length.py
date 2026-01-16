@@ -1,7 +1,7 @@
 """increase_status_col_length
 
 Revision ID: 5f9b4c0e64cd
-Revises: 95fc7a05cf71
+Revises: 004_add_quality_attributes
 Create Date: 2026-01-15 10:45:00.000000
 
 """
