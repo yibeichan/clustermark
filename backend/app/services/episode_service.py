@@ -429,8 +429,8 @@ class EpisodeService:
         split_annotations_export = {}
 
         for cluster in clusters:
-            # Only include completed clusters
-            if cluster.annotation_status != "completed":
+            # Only include processed clusters (completed, annotated, or outlier)
+            if cluster.annotation_status not in ["completed", "annotated", "outlier"]:
                 continue
 
             annotated_clusters += 1
