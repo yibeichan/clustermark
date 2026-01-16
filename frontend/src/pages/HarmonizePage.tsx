@@ -154,34 +154,36 @@ export default function HarmonizePage() {
                 {/* Left/Main Panel: Pile List */}
                 <div className={`col-span-${expandedPileId ? '4' : '12'}`}>
 
-                    <div className="card card-action mb-4">
-                        <h3>Combine {selectedPiles.size} Piles</h3>
+                    {/* Combine Controls */}
+                    {selectedPiles.size > 1 && (
+                        <div className="card card-action mb-4">
+                            <h3>Combine {selectedPiles.size} Piles</h3>
 
-                        <div className="info-box naming-help-box my-3">
-                            <ul className="info-box-list text-xs text-secondary">
-                                <li>For "Others", use descriptive names (e.g. <code>woman1</code>, <code>man_in_red</code>).</li>
-                                <li>Do NOT reuse names unless they are the same person.</li>
-                            </ul>
-                        </div>
+                            <div className="info-box naming-help-box my-3">
+                                <ul className="info-box-list text-xs text-secondary">
+                                    <li>For "Others", use descriptive names (e.g. <code>woman1</code>, <code>man_in_red</code>).</li>
+                                    <li>Do NOT reuse names unless they are the same person.</li>
+                                </ul>
+                            </div>
 
-                        <div className="flex items-center gap-4 mt-2">
-                            <LabelDropdown
-                                value={combineLabel}
-                                onChange={(label) => {
-                                    setCombineLabel(label);
-                                }}
-                                speakers={speakers}
-                                placeholder="Select new label for combined pile..."
-                            />
-                            <button
-                                className="button"
-                                disabled={!combineLabel}
-                                onClick={handleCombinePiles}
-                            >
-                                Combine
-                            </button>
+                            <div className="flex items-center gap-4 mt-2">
+                                <LabelDropdown
+                                    value={combineLabel}
+                                    onChange={(label) => {
+                                        setCombineLabel(label);
+                                    }}
+                                    speakers={speakers}
+                                    placeholder="Select new label for combined pile..."
+                                />
+                                <button
+                                    className="button"
+                                    disabled={!combineLabel}
+                                    onClick={handleCombinePiles}
+                                >
+                                    Combine
+                                </button>
+                            </div>
                         </div>
-                    </div>
                     )}
 
                     <div className="grid grid-cols-fill-200 gap-4">
