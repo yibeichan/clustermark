@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { consolidationApi, episodeApi } from '../services/api'; // Added episodeApi
 import { Pile } from '../types';
@@ -15,6 +15,16 @@ export default function HarmonizePage() {
     const [expandedPileId, setExpandedPileId] = useState<string | null>(null);
     const [combineLabel, setCombineLabel] = useState<string>('');
     const [speakers, setSpeakers] = useState<string[]>([]); // For LabelDropdown
+
+    // Ref for auto-scrolling inspector
+    const inspectorRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll to top when inspector opens or changes pile
+    useEffect(() => {
+        if (expandedPileId && inspectorRef.current) {
+            inspectorRef.current.scrollTop = 0;
+        }
+    }, [expandedPileId]);
 
     // Define bucket URL base
     const BUCKET_URL = '/uploads';
@@ -144,28 +154,34 @@ export default function HarmonizePage() {
                 {/* Left/Main Panel: Pile List */}
                 <div className={`col-span-${expandedPileId ? '4' : '12'}`}>
 
-                    {/* Combine Controls */}
-                    {selectedPiles.size > 1 && (
-                        <div className="card card-action mb-4">
-                            <h3>Combine {selectedPiles.size} Piles</h3>
-                            <div className="flex items-center gap-4 mt-2">
-                                <LabelDropdown
-                                    value={combineLabel}
-                                    onChange={(label) => {
-                                        setCombineLabel(label);
-                                    }}
-                                    speakers={speakers}
-                                    placeholder="Select new label for combined pile..."
-                                />
-                                <button
-                                    className="button"
-                                    disabled={!combineLabel}
-                                    onClick={handleCombinePiles}
-                                >
-                                    Combine
-                                </button>
-                            </div>
+                    <div className="card card-action mb-4">
+                        <h3>Combine {selectedPiles.size} Piles</h3>
+
+                        <div className="info-box naming-help-box my-3">
+                            <ul className="info-box-list text-xs text-secondary">
+                                <li>For "Others", use descriptive names (e.g. <code>woman1</code>, <code>man_in_red</code>).</li>
+                                <li>Do NOT reuse names unless they are the same person.</li>
+                            </ul>
                         </div>
+
+                        <div className="flex items-center gap-4 mt-2">
+                            <LabelDropdown
+                                value={combineLabel}
+                                onChange={(label) => {
+                                    setCombineLabel(label);
+                                }}
+                                speakers={speakers}
+                                placeholder="Select new label for combined pile..."
+                            />
+                            <button
+                                className="button"
+                                disabled={!combineLabel}
+                                onClick={handleCombinePiles}
+                            >
+                                Combine
+                            </button>
+                        </div>
+                    </div>
                     )}
 
                     <div className="grid grid-cols-fill-200 gap-4">
@@ -211,7 +227,10 @@ export default function HarmonizePage() {
 
                 {/* Right Panel: Expanded Pile View (Inspector) */}
                 {expandedPileId && (
-                    <div className="col-span-8 card inspector-panel h-screen-calc overflow-y-auto">
+                    <div
+                        ref={inspectorRef}
+                        className="col-span-8 card inspector-panel h-screen-calc overflow-y-auto"
+                    >
                         {(() => {
                             const pile = piles.find(p => p.id === expandedPileId);
                             if (!pile) return null;

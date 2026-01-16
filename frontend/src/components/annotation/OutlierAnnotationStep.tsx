@@ -53,26 +53,19 @@ export default function OutlierAnnotationStep({
         </div>
         <p className="info-box-content">
           For unknown faces, use <code>DK1</code>, <code>DK2</code>,{" "}
-          <code>DK3</code>, etc. to indicate groups:
+          <code>DK3</code>, etc.
         </p>
         <ul className="info-box-list">
           <li>
-            <strong>DK1</strong> = All images labeled DK1 are the{" "}
-            <em>same</em> unknown person
+            <strong>Cluster-Specific:</strong> DK labels are unique to{" "}
+            <em>this cluster only</em>. "DK1" here is NOT the same person as
+            "DK1" in another cluster.
           </li>
           <li>
-            <strong>DK2</strong> = All images labeled DK2 are a{" "}
-            <em>different</em> unknown person
-          </li>
-          <li>
-            Use higher numbers (DK3, DK4...) for each additional unique unknown
-            person
+            <strong>Grouping:</strong> Use the same DK number (e.g. DK1) for
+            all outliers in this cluster that are the <em>same person</em>.
           </li>
         </ul>
-        <p className="info-box-example">
-          Example: If 3 outliers are the same extra character, label all 3 as{" "}
-          <code>DK1</code>
-        </p>
       </div>
 
       <p className="mt-16 mb-12">
