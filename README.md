@@ -56,8 +56,9 @@ Friends_S01E05.zip
 
 **Upload:**
 1. Drag & drop your ZIP onto the upload area (or click to browse)
-2. Wait for processing (a few seconds)
-3. Click on your episode name to start annotating
+2. **Optional**: Drag & drop a previously exported `annotations.json` file to resume work or import pre-labels.
+3. Wait for processing (a few seconds)
+4. Click on your episode name to start annotating
 
 ### Step 4: Annotate Clusters
 
@@ -95,9 +96,9 @@ The workflow:
 
 1. Go back to episode page
 2. Click "Export Annotations"
-3. Download JSON file with all your labels
+3. Download a JSON file with all your labels. This file can be re-uploaded later to resume work.
 
-**JSON format:**
+**Example Export Structure:**
 ```json
 {
   "episode_name": "Friends_S01E05",
@@ -108,18 +109,21 @@ The workflow:
       "label": "Rachel",
       "image_count": 20,
       "outliers": []
-    },
-    "cluster-02": {
-      "label": "Monica",
-      "image_count": 18,
-      "outliers": [
-        {"image": "scene_0_track_1_frame_001.jpg", "label": "Chandler", "quality": ["@blurry"]},
-        {"image": "scene_0_track_1_frame_015.jpg", "label": "Chandler", "quality": []}
-      ]
     }
   }
 }
 ```
+
+### Step 6: Harmonize Characters
+
+Once all clusters are annotated, use the **Harmonize** feature to consolidate labels:
+
+1. Click **"Harmonize Characters"** on the episode page.
+2. Character faces are grouped into "Piles" by their labels.
+3. **Combine Piles**: Select multiple piles (e.g., "Rachel" and "Rach") and combine them into one unified identity.
+4. **Move Images**: Inspect a pile and move mistakenly labeled images to the correct character pile.
+5. Click **"Save & Finish"** to finalize the episode's consolidated state.
+6. Export the final results for a unified character dataset.
 
 ---
 
@@ -133,9 +137,21 @@ The workflow:
 - The outlier workflow is there if needed
 
 **When to use outliers:**
-- You see 2+ different people in the cluster
-- A few images are clearly wrong (different face)
-- Mixed clusters (e.g., group scenes with multiple characters)
+- You see 2+ different people in the cluster.
+- A few images are clearly wrong (different face).
+- Mixed clusters (e.g., group scenes with multiple characters).
+
+**Labeling Unknowns (DK Convention):**
+- Use `DK1`, `DK2`, etc., for faces you don't recognize.
+- These labels are **cluster-specific** during the annotation phase.
+- During Harmonization, you can merge `DK` piles from different clusters if they represent the same unknown person.
+
+### Round-Trip Compatibility
+
+ClusterMark supports a "round-trip" workflow:
+1. **Export** your work as a JSON file.
+2. **Re-upload** the ZIP + JSON to resumes exactly where you left off.
+3. Harmonized labels are preserved as the new "initial labels" upon import.
 
 ### Data Preparation
 
@@ -165,12 +181,14 @@ The workflow:
 - Paginated review: Browse through 10/20/50 images per page
 - Outlier handling: Click to mark images that don't belong, then label them separately
 - Progress tracking: See how many clusters you've labeled
-- Export results: Download annotations as JSON
+- Export results: Download annotations as JSON.
+- **Harmonization Tool**: Consolidate character appearances across different clusters into unified identities.
+- **Annotation Import**: Re-upload previous JSON exports to resume work or bootstrap from pre-labels.
+- **Quality Attributes**: Mark images with `@blurry`, `@occluded`, etc., during outlier labeling.
 
 **Current Status:**
-- Core annotation workflow complete (Phases 1-6)
-- Testing infrastructure complete (Phase 7)
-- All features listed above are working
+- All planned features (Phases 1-8) are complete and verified.
+- Core annotation, outlier handling, and harmonization are fully functional.
 
 **Known limitations:**
 - No keyboard shortcuts yet
