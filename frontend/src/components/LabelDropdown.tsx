@@ -33,12 +33,12 @@ export default function LabelDropdown({
   // Phase 7: Use dynamic speakers list for matching (case-insensitive)
   useEffect(() => {
     if (value) {
-      // Case-insensitive match against speakers list
+      // Case-insensitive match against speakers list or special "non-face" option
       const matchedSpeaker = speakers.find(
         (s) => s.toLowerCase() === value.toLowerCase(),
       );
-      if (matchedSpeaker) {
-        setSelectedOption(matchedSpeaker);
+      if (matchedSpeaker || value.toLowerCase() === "non-face") {
+        setSelectedOption(matchedSpeaker || "non-face");
         setShowCustomInput(false);
         setCustomLabel("");
       } else {
@@ -52,7 +52,7 @@ export default function LabelDropdown({
       setCustomLabel("");
       setShowCustomInput(false);
     }
-  }, [value]);
+  }, [value, speakers]);
 
   // Gemini HIGH + Codex P1: Handle all dropdown selections including placeholder
   const handleDropdownChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -104,6 +104,7 @@ export default function LabelDropdown({
         className="form-select"
       >
         <option value="">{placeholder}</option>
+        <option value="non-face">non-face</option>
         {speakers.map((speaker) => (
           <option key={speaker} value={speaker}>
             {speaker}

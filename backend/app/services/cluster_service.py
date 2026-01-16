@@ -32,9 +32,15 @@ def normalize_label(label: str) -> str:
         "" -> "unlabeled"
         "  " -> "unlabeled"
     """
-    if not label or not label.strip():
+    stripped = label.strip()
+    if not label or not stripped:
         return "unlabeled"
-    return " ".join(word.capitalize() for word in label.strip().split())
+
+    # Special case: preserve "non-face" (lowercase)
+    if stripped.lower() == "non-face":
+        return "non-face"
+
+    return " ".join(word.capitalize() for word in stripped.split())
 
 
 class ClusterService:

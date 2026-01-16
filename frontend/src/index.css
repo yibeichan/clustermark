@@ -440,3 +440,193 @@ body {
   gap: 8px;
   font-size: 13px;
 }
+
+/* ===========================================
+   Grid Utilities (12-column system)
+   =========================================== */
+.grid-cols-12 {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.col-span-12 {
+  grid-column: span 12 / span 12;
+}
+
+.col-span-8 {
+  grid-column: span 8 / span 8;
+}
+
+.col-span-4 {
+  grid-column: span 4 / span 4;
+}
+
+/* Responsive auto-fill grids */
+.grid-cols-fill-200 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.grid-cols-fill-100 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+/* Flexbox utilities */
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.gap-1 {
+  gap: 4px;
+}
+
+.gap-2 {
+  gap: 8px;
+}
+
+.gap-4 {
+  gap: 16px;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.h-16 {
+  height: 64px;
+}
+
+.h-24 {
+  height: 96px;
+}
+
+.object-cover {
+  object-fit: cover;
+}
+
+.rounded {
+  border-radius: 6px;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-secondary {
+  color: #6c757d;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.relative {
+  position: relative;
+}
+
+.absolute {
+  position: absolute;
+}
+
+.top-1 {
+  top: 4px;
+}
+
+.right-1 {
+  right: 4px;
+}
+
+.text-white {
+  color: white;
+}
+
+.bg-primary {
+  background-color: #007bff;
+}
+
+.rounded-full {
+  border-radius: 9999px;
+}
+
+.pointer-events-none {
+  pointer-events: none;
+}
+
+.shadow {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.overflow-y-auto {
+  overflow-y: auto;
+}
+
+.h-screen-calc {
+  height: calc(100vh - 140px);
+}
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 0.25em 0.4em;
+  font-size: 75%;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 0.25rem;
+}
+
+.badge-primary {
+  color: #fff;
+  background-color: #007bff;
+}
+
+.badge-warning {
+  color: #212529;
+  background-color: #ffc107;
+}
+
+/* Pile Card Styles */
+.pile-card {
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.pile-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.pile-card.selected {
+  border-color: #007bff;
+  background-color: #f0f7ff;
+}
+
+.pile-card.active {
+  border-color: #28a745;
+}
+
+.sticky-header {
+  position: sticky;
+  top: 20px;
+  /* Adjust based on container padding */
+  z-index: 10;
+}

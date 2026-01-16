@@ -1,28 +1,21 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, BrowserRouter as Router } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import EpisodePage from "./pages/EpisodePage";
 import AnnotationPage from "./pages/AnnotationPage";
-import ErrorBoundary from "./components/ErrorBoundary";
+import HarmonizePage from './pages/HarmonizePage';
 
 function App() {
   return (
     <div className="container">
-      <div className="header">
-        <h1>ClusterMark</h1>
-        <p>Face Cluster Annotation System</p>
-      </div>
+      <header className="mb-24">
+        <h1 className="text-primary">ClusterMark</h1>
+      </header>
 
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/episodes/:episodeId" element={<EpisodePage />} />
-        <Route
-          path="/annotate/:clusterId"
-          element={
-            <ErrorBoundary>
-              <AnnotationPage />
-            </ErrorBoundary>
-          }
-        />
+        <Route path="/episodes/:episodeId/harmonize" element={<HarmonizePage />} />
+        <Route path="/annotate/:clusterId" element={<AnnotationPage />} />
       </Routes>
     </div>
   );

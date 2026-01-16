@@ -172,3 +172,23 @@ class EpisodeSpeakersResponse(BaseModel):
     season: Optional[int] = None
     episode_number: Optional[int] = None
     speakers: List[str]  # Speaker names in title case, sorted by frequency (desc)
+
+
+# Phase 8: Harmonization schemas
+class PileImage(BaseModel):
+    id: uuid.UUID
+    file_path: str
+    original_label: Optional[str] = None
+    source_cluster_id: uuid.UUID
+
+
+class Pile(BaseModel):
+    id: uuid.UUID
+    name: str
+    isOutlier: bool
+    images: List[PileImage]
+
+
+class HarmonizeRequest(BaseModel):
+    piles: List[Pile]
+

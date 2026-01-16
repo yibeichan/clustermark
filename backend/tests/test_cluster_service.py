@@ -44,6 +44,11 @@ class TestNormalizeLabel:
         assert normalize_label("  rachel  ") == "Rachel"
         assert normalize_label("\trachel\n") == "Rachel"
 
+    def test_preserves_non_face(self):
+        """Test 'non-face' is preserved as-is (not title cased)."""
+        assert normalize_label("non-face") == "non-face"
+        assert normalize_label("NON-FACE") == "non-face"
+
     def test_empty_string_returns_unlabeled(self):
         """Test empty string returns 'unlabeled'."""
         assert normalize_label("") == "unlabeled"

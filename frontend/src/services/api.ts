@@ -11,6 +11,7 @@ import {
   OutlierAnnotation,
   Image,
   EpisodeSpeakersResponse,
+  Pile,
 } from "../types";
 
 const API_BASE = "/api";
@@ -23,9 +24,12 @@ export const episodeApi = {
   list: () => api.get<Episode[]>("/episodes/"),
   get: (id: string) => api.get<Episode>(`/episodes/${id}`),
   getClusters: (id: string) => api.get<Cluster[]>(`/episodes/${id}/clusters`),
-  upload: (file: File) => {
+  upload: (file: File, annotations?: File) => {
     const formData = new FormData();
     formData.append("file", file);
+    if (annotations) {
+      formData.append("annotations", annotations);
+    }
     return api.post<Episode>("/episodes/upload", formData);
   },
   export: (id: string) => api.get(`/episodes/${id}/export`),
@@ -83,4 +87,12 @@ export const annotationApi = {
     api.post(`/annotations/tasks/${taskId}/complete`, {
       session_token: sessionToken,
     }),
+};
+
+export const consolidationApi = {
+  getPiles: (episodeId: string) =>
+    api.get<Pile[]>(`/episodes/${episodeId}/piles`),
+
+  saveHarmonization: (episodeId: string, piles: Pile[]) =>
+    api.post(`/episodes/${episodeId}/harmonize`, { piles }),
 };

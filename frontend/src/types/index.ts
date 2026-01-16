@@ -104,3 +104,22 @@ export interface EpisodeSpeakersResponse {
   episode_number: number | null;
   speakers: string[]; // Speaker names in title case, sorted by frequency (desc)
 }
+
+// Phase 8: Harmonization types
+export interface PileImage {
+  id: string;
+  file_path: string;
+  original_label?: string;
+  source_cluster_id: string;
+}
+
+export interface Pile {
+  id: string;
+  name: string;
+  isOutlier: boolean;
+  images: PileImage[];
+}
+
+export interface HarmonizeRequest {
+  piles: Pile[];
+}

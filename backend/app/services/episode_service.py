@@ -1,8 +1,10 @@
+import json
 import logging
 import re
 import shutil
 import zipfile
-from collections import defaultdict
+from uuid import uuid4
+from collections import defaultdict, Counter
 from pathlib import Path
 from typing import Dict, List
 
@@ -427,8 +429,8 @@ class EpisodeService:
         split_annotations_export = {}
 
         for cluster in clusters:
-            # Only include completed clusters
-            if cluster.annotation_status != "completed":
+            # Only include processed clusters (completed, annotated, or outlier)
+            if cluster.annotation_status not in ["completed", "annotated", "outlier"]:
                 continue
 
             annotated_clusters += 1
@@ -440,18 +442,44 @@ class EpisodeService:
             if not images and not cluster_splits:
                 continue
 
-            # CORRECT OUTLIER DETECTION: Check annotation_status, not label comparison
-            outlier_images = [
-                img for img in images if img.annotation_status == "outlier"
+            # DYNAMIC RE-EVALUATION for Harmonization
+            # Instead of relying on static cluster.person_name or old annotation_status,
+            # we redetermine the cluster's identity based on the majority label of its images.
+            # This ensures export matches the final harmonized state.
+            
+            valid_images = [
+                img for img in images 
+                if img.annotation_status in ["annotated", "outlier"]
             ]
-            main_images = [
-                img for img in images if img.annotation_status == "annotated"
-            ]
+            
+            if not valid_images and not cluster_splits:
+                continue
 
-            # Determine cluster label (lowercase for export)
-            cluster_label = (
-                cluster.person_name.lower() if cluster.person_name else "unlabeled"
+            # Determine dominant label
+            label_counts = Counter(
+                img.current_label for img in valid_images 
+                if img.current_label
             )
+            
+            if label_counts:
+                # Most frequent label becomes the cluster's exported label
+                cluster_label = label_counts.most_common(1)[0][0]
+            else:
+                # Fallback to DB label if no images have labels (unlikely)
+                cluster_label = cluster.person_name if cluster.person_name else "unlabeled"
+
+            # Re-classify images based on the new dominant label
+            main_images = [
+                img for img in valid_images 
+                if img.current_label == cluster_label
+            ]
+            outlier_images = [
+                img for img in valid_images 
+                if img.current_label != cluster_label
+            ]
+            
+            # Ensure label is lowercase for export consistency
+            cluster_label = cluster_label.lower()
 
             # Track not_human clusters
             if cluster_label == "not_human":
@@ -736,4 +764,183 @@ class EpisodeService:
 
         # Upload new episode (duplicate check will pass since we just deleted)
         return await self.upload_episode(file)
+
+    async def import_annotations(self, episode_id: str, file: UploadFile):
+        """
+        Import annotations from a JSON file.
+
+        Updates Cluster and Image records to reflect external annotations.
+        """
+        try:
+            content = await file.read()
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON file")
+
+        # Map cluster names to IDs
+        clusters = (
+            self.db.query(models.Cluster)
+            .filter(models.Cluster.episode_id == episode_id)
+            .all()
+        )
+        cluster_map = {c.cluster_name: c for c in clusters}
+
+        # Process cluster annotations
+        cluster_annotations = data.get("cluster_annotations", {})
+        for cluster_name, info in cluster_annotations.items():
+            cluster = cluster_map.get(cluster_name)
+            if not cluster:
+                logger.warning(f"Cluster {cluster_name} not found, skipping")
+                continue
+
+            # Update cluster status
+            cluster.annotation_status = "annotated"
+            cluster.person_name = info.get("label")
+            cluster.is_single_person = True  # Assumption for simple import
+            
+            # Map outliers
+            outlier_paths = {o["image_path"] for o in info.get("outliers", [])}
+            
+            # Update all images in this cluster
+            images = (
+                self.db.query(models.Image)
+                .filter(models.Image.cluster_id == cluster.id)
+                .all()
+            )
+            
+            for img in images:
+                # Get relative path key for matching
+                rel_path = self._convert_to_relative_path(img.file_path)
+                
+                if rel_path in outlier_paths:
+                    img.annotation_status = "outlier"
+                    # Find specific outlier info
+                    outlier_info = next(
+                        (o for o in info.get("outliers", []) if o["image_path"] == rel_path), 
+                        {}
+                    )
+                    label = outlier_info.get("label")
+                    if label:
+                        if label.upper().startswith("DK"):
+                            # User request: DK labels stay cluster-specific (DK1_cluster-name)
+                            img.current_label = f"{label}_{cluster.cluster_name}"
+                        else:
+                            # User request: Main characters (Rachel, Monica) auto-combine across clusters
+                            img.current_label = label
+                    else:
+                        img.current_label = f"{cluster.cluster_name}_DK"
+                    if outlier_info.get("is_custom_label"):
+                        img.is_custom_label = True
+                    if outlier_info.get("quality"):
+                        img.quality_attributes = outlier_info.get("quality")
+                else:
+                    img.annotation_status = "annotated"
+                    img.current_label = cluster.person_name
+                    if info.get("is_custom_label"):
+                        img.is_custom_label = True
+
+            # Check if cluster has outliers
+            cluster.has_outliers = bool(outlier_paths)
+            cluster.outlier_count = len(outlier_paths)
+
+        # Update episode status
+        episode = self.db.query(models.Episode).get(episode_id)
+        if episode:
+            episode.annotated_clusters = len(cluster_annotations)
+            episode.status = "ready_for_harmonization"
+
+        self.db.commit()
+        logger.info(f"Imported annotations for {len(cluster_annotations)} clusters")
+
+    async def get_piles(self, episode_id: str) -> List[Dict]:
+        """
+        Get initial piles for harmonization.
+
+        Group images by current_label to form piles.
+        """
+        # Fetch annotated and outlier images
+        images = (
+            self.db.query(models.Image)
+            .join(models.Cluster)
+            .filter(
+                models.Image.episode_id == episode_id,
+                models.Image.annotation_status.in_(["annotated", "outlier"]),
+            )
+            .all()
+        )
+
+        piles_map = defaultdict(list)
+        
+        for img in images:
+            # Determine pile name
+            # If annotated, use current_label (person name)
+            # If outlier, use current_label if set, else construct default DK name
+            pile_name = img.current_label
+            if not pile_name:
+                if img.annotation_status == "outlier":
+                    pile_name = f"{img.cluster.cluster_name}_DK"
+                else:
+                    pile_name = "Unlabeled"
+
+            piles_map[pile_name].append(img)
+
+        # Convert to Pile objects
+        piles = []
+        for name, img_list in piles_map.items():
+            is_outlier = "DK" in name or any(img.annotation_status == "outlier" for img in img_list)
+            
+            pile_images = []
+            for img in img_list:
+                pile_images.append({
+                    "id": img.id,
+                    "file_path": self._convert_to_relative_path(img.file_path),
+                    "original_label": img.initial_label,
+                    "source_cluster_id": img.cluster_id
+                })
+
+            piles.append({
+                "id": str(uuid4()),
+                "name": name,
+                "isOutlier": is_outlier,
+                "images": pile_images
+            })
+            
+        # Sort piles by size (descending) then name
+        piles.sort(key=lambda x: (-len(x["images"]), x["name"]))
+        
+        return piles
+
+    async def save_harmonization(self, episode_id: str, piles: List[schemas.Pile]):
+        """
+        Save harmonized pile assignments.
+
+        Updates Image.current_label for each image based on pile assignment.
+        """
+        # Create a map of image_id -> new_label
+        image_updates = {}
+        for pile in piles:
+            for pile_img in pile.images:
+                image_updates[pile_img.id] = pile.name
+
+        if not image_updates:
+            return {"status": "success", "updated_count": 0}
+
+        # Fetch all affected images
+        images = (
+            self.db.query(models.Image)
+            .filter(models.Image.id.in_(image_updates.keys()))
+            .all()
+        )
+        
+        count = 0
+        for img in images:
+            new_label = image_updates.get(img.id)
+            if new_label and img.current_label != new_label:
+                img.current_label = new_label
+                count += 1
+        
+        self.db.commit()
+        logger.info(f"Harmonization saved: updated {count} images")
+        
+        return {"status": "success", "updated_count": count}
 

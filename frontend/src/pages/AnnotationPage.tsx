@@ -150,6 +150,22 @@ export default function AnnotationPage() {
               });
               return merged;
             });
+
+            // Populate outlierAnnotations with existing data (label, quality)
+            setOutlierAnnotations((prev) => {
+              const merged = new Map(prev);
+              response.data.outliers.forEach((img) => {
+                // Preserving client-side edits if any
+                if (!merged.has(img.id)) {
+                  merged.set(img.id, {
+                    label: img.current_label || "",
+                    isCustom: img.is_custom_label,
+                    quality: img.quality_attributes || [],
+                  });
+                }
+              });
+              return merged;
+            });
           }
           // Clear any previous errors on successful load
           if (!isCancelled) {
