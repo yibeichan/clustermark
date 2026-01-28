@@ -36,21 +36,22 @@ export default function BatchLabelStep({
   return (
     <div className="card">
       <h3 className="mb-16">{title}</h3>
-      {description} {imageCount} images:
-    </p>
+      <p>
+        {description} {imageCount} images:
+      </p>
 
-      {/* Naming Convention Help Box */ }
+      {/* Naming Convention Help Box */}
       <div className="info-box naming-help-box mb-16">
         <div className="info-box-header">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
-            <strong>Using "Others" Label</strong>
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+          <strong>Using "Others" Label</strong>
         </div>
         <ul className="info-box-list text-sm">
-            <li>Use descriptive names: <code>woman1</code>, <code>man2</code>, <code>kid1</code></li>
-            <li>Or short descriptions: <code>man on wheelchair</code> (max 5 words)</li>
-            <li><strong>Unique IDs:</strong> Unless they are the exact same person, do NOT use the same label (e.g. <code>woman1</code>) again in this episode.</li>
+          <li>Use descriptive names: <code>woman1</code>, <code>man2</code>, <code>kid1</code></li>
+          <li>Or short descriptions: <code>man on wheelchair</code> (max 5 words)</li>
+          <li><strong>Unique IDs:</strong> Unless they are the exact same person, do NOT use the same label (e.g. <code>woman1</code>) again in this episode.</li>
         </ul>
       </div>
       <div className="batch-label-section mt-12 mb-20">
