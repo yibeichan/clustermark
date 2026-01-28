@@ -12,5 +12,9 @@ echo "Running database migrations..."
 alembic upgrade head
 echo "Migrations complete!"
 
+echo "Importing speaker data..."
+python scripts/import_speakers.py
+echo "Speaker import complete!"
+
 echo "Starting application..."
 exec "$@"
