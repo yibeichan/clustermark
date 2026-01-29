@@ -819,16 +819,23 @@ class EpisodeService:
                         (o for o in info.get("outliers", []) if o["image_path"] == rel_path), 
                         {}
                     )
+                    # Extract simplified cluster suffix (e.g., "cluster-01" from "friends_s01e12a_cluster-01")
+                    cluster_full_name = cluster.cluster_name
+                    if "_cluster-" in cluster_full_name:
+                        cluster_suffix = "cluster-" + cluster_full_name.split("_cluster-")[-1]
+                    else:
+                        cluster_suffix = cluster_full_name
+                    
                     label = outlier_info.get("label")
                     if label:
                         if label.upper().startswith("DK"):
-                            # User request: DK labels stay cluster-specific (DK1_cluster-name)
-                            img.current_label = f"{label}_{cluster.cluster_name}"
+                            # User request: DK labels stay cluster-specific (DK1_cluster-01)
+                            img.current_label = f"{label}_{cluster_suffix}"
                         else:
                             # User request: Main characters (Rachel, Monica) auto-combine across clusters
                             img.current_label = label
                     else:
-                        img.current_label = f"{cluster.cluster_name}_DK"
+                        img.current_label = f"{cluster_suffix}_DK"
                     if outlier_info.get("is_custom_label"):
                         img.is_custom_label = True
                     if outlier_info.get("quality"):
@@ -878,7 +885,13 @@ class EpisodeService:
             pile_name = img.current_label
             if not pile_name:
                 if img.annotation_status == "outlier":
-                    pile_name = f"{img.cluster.cluster_name}_DK"
+                    # Extract just the cluster suffix (e.g., "cluster-01" from "friends_s01e12a_cluster-01")
+                    cluster_name = img.cluster.cluster_name
+                    if "_cluster-" in cluster_name:
+                        cluster_suffix = "cluster-" + cluster_name.split("_cluster-")[-1]
+                    else:
+                        cluster_suffix = cluster_name
+                    pile_name = f"{cluster_suffix}_DK"
                 else:
                     pile_name = "Unlabeled"
 
