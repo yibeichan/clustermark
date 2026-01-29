@@ -9,8 +9,9 @@ done
 echo "Database port is open, waiting for PostgreSQL to be ready..."
 
 # Wait for PostgreSQL to be fully ready (handles recovery after crash)
-export PGPASSWORD=clustermark
-until psql -h db -U clustermark -d clustermark -c '\q' 2>/dev/null; do
+# Credentials must match docker-compose.yml: user/password
+export PGPASSWORD=password
+until psql -h db -U user -d clustermark -c '\q' 2>/dev/null; do
   echo "PostgreSQL is not ready yet, waiting..."
   sleep 2
 done
