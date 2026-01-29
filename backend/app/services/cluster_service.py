@@ -385,10 +385,28 @@ class ClusterService:
 
         # Phase 7: Normalize labels to title case and group by quality attributes for consistent storage and efficient batch updates
         total_updated = 0
+        
+        # Fetch cluster info for making DK labels cluster-specific
+        # We already verified all images belong to the same cluster above
+        cluster_id = list(cluster_ids)[0]  # Get the single cluster_id
+        cluster = (
+            self.db.query(models.Cluster)
+            .filter(models.Cluster.id == cluster_id)
+            .first()
+        )
+        cluster_name = cluster.cluster_name if cluster else "unknown"
+        
         # Group updates by (normalized name, custom flag, quality_attributes tuple) to run fewer UPDATE queries safely
         updates_by_group = defaultdict(list)
         for annotation in annotations:
             normalized_name = normalize_label(annotation.person_name)
+            
+            # CRITICAL FIX: Make DK labels cluster-specific to prevent merging during harmonization
+            # DK1, DK2, etc. should remain separate per cluster until manually merged by user
+            # Known characters (Rachel, Ross, etc.) remain as-is for auto-merging
+            if normalized_name.upper().startswith("DK"):
+                normalized_name = f"{normalized_name}_{cluster_name}"
+            
             # Convert quality_attributes list to tuple for hashability (dict key)
             quality_tuple = tuple(sorted(annotation.quality_attributes)) if annotation.quality_attributes else ()
             updates_by_group[(normalized_name, annotation.is_custom_label, quality_tuple)].append(
