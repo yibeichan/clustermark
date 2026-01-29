@@ -155,89 +155,10 @@ export default function HarmonizePage() {
                 </div>
             </div>
 
-            <div className="harmonize-content grid grid-cols-12 gap-4 mt-4">
-                {/* Left/Main Panel: Pile List */}
-                <div className={`col-span-${expandedPileId ? '4' : '12'}`}>
-
-                    {/* Combine Controls */}
-                    {selectedPiles.size > 1 && (
-                        <div className="card card-action mb-4">
-                            <h3>Combine {selectedPiles.size} Piles</h3>
-
-                            <div className="info-box naming-help-box my-3">
-                                <ul className="info-box-list text-xs text-secondary">
-                                    <li>For "Others", use descriptive names (e.g. <code>woman1</code>, <code>man_in_red</code>).</li>
-                                    <li>Do NOT reuse names unless they are the same person.</li>
-                                </ul>
-                            </div>
-
-                            <div className="flex items-center gap-4 mt-2">
-                                <LabelDropdown
-                                    value={combineLabel}
-                                    onChange={(label) => {
-                                        setCombineLabel(label);
-                                    }}
-                                    speakers={speakers}
-                                    placeholder="Select new label for combined pile..."
-                                />
-                                <button
-                                    className="button"
-                                    disabled={!combineLabel}
-                                    onClick={handleCombinePiles}
-                                >
-                                    Combine
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="grid grid-cols-fill-200 gap-4">
-                        {piles.map(pile => (
-                            <div
-                                key={pile.id}
-                                className={`card pile-card ${selectedPiles.has(pile.id) ? 'selected' : ''} ${expandedPileId === pile.id ? 'active' : ''}`}
-                                onClick={() => togglePileSelection(pile.id)}
-                            >
-                                <div className="pile-header flex justify-between">
-                                    <span className={`badge ${pile.isOutlier ? 'badge-warning' : 'badge-primary'}`}>
-                                        {pile.name}
-                                    </span>
-                                    <span className="text-secondary">{pile.images.length}</span>
-                                </div>
-
-                                <div className="pile-preview mt-2 grid grid-cols-2 gap-1 pointer-events-none">
-                                    {pile.images.slice(0, 4).map(img => (
-                                        <img
-                                            key={img.id}
-                                            src={`${BUCKET_URL}/${img.file_path}`}
-                                            className="w-full h-16 object-cover rounded"
-                                            alt=""
-                                        />
-                                    ))}
-                                </div>
-
-                                <div className="mt-2 text-center">
-                                    <button
-                                        className="button button-sm button-secondary w-full"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setExpandedPileId(expandedPileId === pile.id ? null : pile.id);
-                                        }}
-                                    >
-                                        {expandedPileId === pile.id ? 'Close' : 'Inspect'}
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Right Panel: Expanded Pile View (Inspector) */}
-                {expandedPileId && (
-                    <div
-                        ref={inspectorRef}
-                        className="col-span-8 card inspector-panel h-screen-calc overflow-y-auto"
-                    >
+            <div className="harmonize-content mt-4">
+                {/* Inspection View - Full Screen Images Only */}
+                {expandedPileId ? (
+                    <div ref={inspectorRef} className="card inspector-panel">
                         {(() => {
                             const pile = piles.find(p => p.id === expandedPileId);
                             if (!pile) return null;
@@ -245,7 +166,20 @@ export default function HarmonizePage() {
                             return (
                                 <>
                                     <div className="flex justify-between items-center mb-4">
-                                        <h3>{pile.name} <span className="text-secondary">({pile.images.length})</span></h3>
+                                        <div className="flex items-center gap-4">
+                                            <button
+                                                className="button button-secondary"
+                                                onClick={() => setExpandedPileId(null)}
+                                            >
+                                                ← Back to Piles
+                                            </button>
+                                            <h3>
+                                                <span className={`badge ${pile.isOutlier ? 'badge-warning' : 'badge-primary'}`}>
+                                                    {pile.name}
+                                                </span>
+                                                <span className="text-secondary ml-2">({pile.images.length} images)</span>
+                                            </h3>
+                                        </div>
 
                                         {selectedImages.size > 0 && (
                                             <div className="flex items-center gap-2">
@@ -264,8 +198,6 @@ export default function HarmonizePage() {
                                                 </select>
                                             </div>
                                         )}
-
-                                        <button className="button button-icon" onClick={() => setExpandedPileId(null)}>×</button>
                                     </div>
 
                                     <div className="grid grid-cols-fill-100 gap-2">
@@ -293,6 +225,81 @@ export default function HarmonizePage() {
                             );
                         })()}
                     </div>
+                ) : (
+                    /* Pile List View */
+                    <>
+                        {/* Combine Controls */}
+                        {selectedPiles.size > 1 && (
+                            <div className="card card-action mb-4">
+                                <h3>Combine {selectedPiles.size} Piles</h3>
+
+                                <div className="info-box naming-help-box my-3">
+                                    <ul className="info-box-list text-xs text-secondary">
+                                        <li>For "Others", use descriptive names (e.g. <code>woman1</code>, <code>man_in_red</code>).</li>
+                                        <li>Do NOT reuse names unless they are the same person.</li>
+                                    </ul>
+                                </div>
+
+                                <div className="flex items-center gap-4 mt-2">
+                                    <LabelDropdown
+                                        value={combineLabel}
+                                        onChange={(label) => {
+                                            setCombineLabel(label);
+                                        }}
+                                        speakers={speakers}
+                                        placeholder="Select new label for combined pile..."
+                                    />
+                                    <button
+                                        className="button"
+                                        disabled={!combineLabel}
+                                        onClick={handleCombinePiles}
+                                    >
+                                        Combine
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-fill-200 gap-4">
+                            {piles.map(pile => (
+                                <div
+                                    key={pile.id}
+                                    className={`card pile-card ${selectedPiles.has(pile.id) ? 'selected' : ''}`}
+                                    onClick={() => togglePileSelection(pile.id)}
+                                >
+                                    <div className="pile-header flex justify-between">
+                                        <span className={`badge ${pile.isOutlier ? 'badge-warning' : 'badge-primary'}`}>
+                                            {pile.name}
+                                        </span>
+                                        <span className="text-secondary">{pile.images.length}</span>
+                                    </div>
+
+                                    <div className="pile-preview mt-2 grid grid-cols-2 gap-1 pointer-events-none">
+                                        {pile.images.slice(0, 4).map(img => (
+                                            <img
+                                                key={img.id}
+                                                src={`${BUCKET_URL}/${img.file_path}`}
+                                                className="w-full h-16 object-cover rounded"
+                                                alt=""
+                                            />
+                                        ))}
+                                    </div>
+
+                                    <div className="mt-2 text-center">
+                                        <button
+                                            className="button button-sm button-secondary w-full"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setExpandedPileId(pile.id);
+                                            }}
+                                        >
+                                            Inspect
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
                 )}
             </div>
         </div>
