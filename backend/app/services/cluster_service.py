@@ -395,6 +395,12 @@ class ClusterService:
             .first()
         )
         cluster_name = cluster.cluster_name if cluster else "unknown"
+        # Extract just the cluster suffix (e.g., "cluster-01" from "S01E05_cluster-01")
+        # Since harmonization is per-episode, we don't need the episode prefix
+        if "_cluster-" in cluster_name:
+            cluster_suffix = "cluster-" + cluster_name.split("_cluster-")[-1]
+        else:
+            cluster_suffix = cluster_name
         
         # Group updates by (normalized name, custom flag, quality_attributes tuple) to run fewer UPDATE queries safely
         updates_by_group = defaultdict(list)
@@ -405,7 +411,7 @@ class ClusterService:
             # DK1, DK2, etc. should remain separate per cluster until manually merged by user
             # Known characters (Rachel, Ross, etc.) remain as-is for auto-merging
             if normalized_name.upper().startswith("DK"):
-                normalized_name = f"{normalized_name}_{cluster_name}"
+                normalized_name = f"{normalized_name}_{cluster_suffix}"
             
             # Convert quality_attributes list to tuple for hashability (dict key)
             quality_tuple = tuple(sorted(annotation.quality_attributes)) if annotation.quality_attributes else ()
