@@ -2,7 +2,6 @@
 
 # Ensure all shell scripts use LF line endings (critical for Docker on Windows)
 *.sh text eol=lf
-entrypoint.sh text eol=lf
 
 # Ensure common text files are normalized
 *.md text
