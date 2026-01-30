@@ -116,6 +116,11 @@ export default function HarmonizePage() {
             return { ...pile, images: remainingImages };
         }).filter(p => p.images.length > 0); // Remove empty piles
 
+        // If the currently inspected pile was emptied, close the inspector
+        if (expandedPileId && !newPiles.some(p => p.id === expandedPileId)) {
+            setExpandedPileId(null);
+        }
+
         setPiles(newPiles);
         setSelectedImages(new Set());
     };
