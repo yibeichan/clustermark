@@ -260,6 +260,28 @@ Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
 ## Troubleshooting
 
+### Windows Users
+
+ClusterMark works on Windows using Docker Desktop. Before getting started:
+
+1. **Install Docker Desktop for Windows**
+   - Download from [docker.com](https://www.docker.com/products/docker-desktop)
+   - Ensure WSL 2 backend is enabled (recommended)
+
+2. **Use PowerShell or Git Bash** to run docker-compose commands
+
+3. **If you see "bad interpreter" or `/bin/bash^M` errors** (only affects clones made before this fix):
+   ```bash
+   # Option A: Re-clone the repository
+   git clone https://github.com/yibeichan/clustermark.git
+   
+   # Option B: Fix line endings in existing clone
+   git add . --renormalize
+   git commit -m "Normalize line endings"
+   ```
+
+---
+
 **App won't start:**
 ```bash
 # Check Docker is running

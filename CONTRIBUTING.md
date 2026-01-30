@@ -27,7 +27,9 @@ Access:
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate                        # macOS/Linux
+# .\venv\Scripts\Activate.ps1                   # Windows (PowerShell)
+# source venv/Scripts/activate                  # Windows (Git Bash)
 pip install -r requirements.txt
 export DATABASE_URL="postgresql://user:password@localhost:5432/clustermark"
 alembic upgrade head
