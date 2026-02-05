@@ -16,6 +16,16 @@ export default function HarmonizePage() {
     const [expandedPileId, setExpandedPileId] = useState<string | null>(null);
     const [combineLabel, setCombineLabel] = useState<string>('');
     const [speakers, setSpeakers] = useState<string[]>([]); // For LabelDropdown
+    const [newPileName, setNewPileName] = useState<string>('');
+    const [showNewPileInput, setShowNewPileInput] = useState(false);
+
+    // Reset new pile input when all images are deselected
+    useEffect(() => {
+        if (selectedImages.size === 0) {
+            setShowNewPileInput(false);
+            setNewPileName('');
+        }
+    }, [selectedImages]);
 
     // Ref for auto-scrolling inspector
     const inspectorRef = useRef<HTMLDivElement>(null);
@@ -125,6 +135,33 @@ export default function HarmonizePage() {
         setSelectedImages(new Set());
     };
 
+    const handleMoveToNewPile = () => {
+        const trimmed = newPileName.trim();
+        if (!trimmed || selectedImages.size === 0) return;
+
+        const movingImages = piles.flatMap(p => p.images).filter(img => selectedImages.has(img.id));
+        const newPile: Pile = {
+            id: crypto.randomUUID(),
+            name: trimmed,
+            isOutlier: trimmed.toLowerCase().startsWith('dk'),
+            images: movingImages
+        };
+
+        const updatedPiles = piles.map(pile => ({
+            ...pile,
+            images: pile.images.filter(img => !selectedImages.has(img.id))
+        })).filter(p => p.images.length > 0);
+
+        if (expandedPileId && !updatedPiles.some(p => p.id === expandedPileId)) {
+            setExpandedPileId(null);
+        }
+
+        setPiles([...updatedPiles, newPile].sort((a, b) => b.images.length - a.images.length));
+        setSelectedImages(new Set());
+        setNewPileName('');
+        setShowNewPileInput(false);
+    };
+
     const handleSave = async () => {
         if (!episodeId) return;
         try {
@@ -189,18 +226,50 @@ export default function HarmonizePage() {
                                         {selectedImages.size > 0 && (
                                             <div className="flex items-center gap-2">
                                                 <span>Move {selectedImages.size} images to:</span>
-                                                <select
-                                                    className="form-select"
-                                                    onChange={(e) => {
-                                                        if (e.target.value) handleMoveImages(e.target.value);
-                                                    }}
-                                                    value=""
-                                                >
-                                                    <option value="">Select pile...</option>
-                                                    {piles.filter(p => p.id !== pile.id).map(p => (
-                                                        <option key={p.id} value={p.id}>{p.name}</option>
-                                                    ))}
-                                                </select>
+                                                {showNewPileInput ? (
+                                                    <>
+                                                        <input
+                                                            type="text"
+                                                            className="form-input"
+                                                            placeholder="New pile name..."
+                                                            value={newPileName}
+                                                            onChange={(e) => setNewPileName(e.target.value)}
+                                                            onKeyDown={(e) => { if (e.key === 'Enter') handleMoveToNewPile(); }}
+                                                            autoFocus
+                                                        />
+                                                        <button
+                                                            className="button button-sm"
+                                                            disabled={!newPileName.trim()}
+                                                            onClick={handleMoveToNewPile}
+                                                        >
+                                                            Move
+                                                        </button>
+                                                        <button
+                                                            className="button button-sm button-secondary"
+                                                            onClick={() => { setShowNewPileInput(false); setNewPileName(''); }}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <select
+                                                        className="form-select"
+                                                        onChange={(e) => {
+                                                            if (e.target.value === '__new_pile__') {
+                                                                setShowNewPileInput(true);
+                                                            } else if (e.target.value) {
+                                                                handleMoveImages(e.target.value);
+                                                            }
+                                                        }}
+                                                        value=""
+                                                    >
+                                                        <option value="">Select pile...</option>
+                                                        {piles.filter(p => p.id !== pile.id).map(p => (
+                                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                                        ))}
+                                                        <option value="__new_pile__">Other (new pile)</option>
+                                                    </select>
+                                                )}
                                             </div>
                                         )}
                                     </div>
